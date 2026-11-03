@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { api, type Job, type JobSource, type IngestionResult, type JobMatch } from "../../lib/api";
+import { plainText } from "../../lib/text";
 import { PageHeader, Card, Badge } from "../../components/ui";
 
 export default function JobsPage() {
@@ -186,10 +188,14 @@ export default function JobsPage() {
           return (
             <Card key={j.id}>
               <div className="flex items-center justify-between gap-2">
-                <div className="font-medium">{j.title} · {j.company}</div>
+                <Link href={`/jobs/${j.id}`} className="font-medium hover:underline">
+                  {j.title} · {j.company}
+                </Link>
                 <Badge>{j.remote ? "Remote" : j.location ?? "—"}</Badge>
               </div>
-              <p className="mt-1 line-clamp-2 text-sm" style={{ color: "var(--muted)" }}>{j.description}</p>
+              <p className="mt-1 line-clamp-2 break-words text-sm" style={{ color: "var(--muted)" }}>
+                {plainText(j.description, 400)}
+              </p>
               <div className="mt-2 text-sm">
                 {m ? (
                   <details>
@@ -236,6 +242,26 @@ export default function JobsPage() {
                 ) : (
                   <span style={{ color: "var(--muted)" }}>Not matched yet</span>
                 )}
+              </div>
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <Link
+                  href={`/jobs/${j.id}`}
+                  className="rounded-lg border px-3 py-1.5 text-xs font-medium"
+                  style={{ borderColor: "var(--border)" }}
+                >
+                  Prepare application →
+                </Link>
+                {j.sourceUrl ? (
+                  <a
+                    href={j.sourceUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-xs font-medium hover:underline"
+                    style={{ color: "var(--muted)" }}
+                  >
+                    Original posting ↗
+                  </a>
+                ) : null}
               </div>
             </Card>
           );

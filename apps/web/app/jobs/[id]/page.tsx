@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { api, ApiError, type Job, type JobMatch } from "../../../lib/api";
+import { plainText } from "../../../lib/text";
 import { PageHeader, Card, Badge } from "../../../components/ui";
 
 /**
@@ -146,7 +147,7 @@ export default function JobDetailPage({ params }: { params: { id: string } }) {
           {job?.postedAt ? <Badge>Posted {new Date(job.postedAt).toLocaleDateString()}</Badge> : null}
         </div>
         {job?.description ? (
-          <p className="mt-3 whitespace-pre-wrap break-words text-sm">{job.description}</p>
+          <p className="mt-3 whitespace-pre-wrap break-words text-sm">{plainText(job.description, 20000)}</p>
         ) : (
           <p className="mt-3 text-sm" style={{ color: "var(--muted)" }}>No description provided for this job.</p>
         )}
