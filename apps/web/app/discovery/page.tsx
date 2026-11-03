@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { discoveryApi, signalsApi, api, type DiscoveryConfig, type HiringSignal } from "../../lib/api";
+import { SuggestInput } from "../../components/suggest-input";
+import { EMPLOYMENT_TYPES, LOCATIONS, ROLES, SKILLS } from "../../lib/reference";
 import { PageHeader, Card, Badge } from "../../components/ui";
 
 /**
@@ -171,19 +173,19 @@ export default function DiscoveryPage() {
               <input type="checkbox" checked={config.enabled} onChange={(e) => set("enabled", e.target.checked)} /> Enabled
             </label>
             <label className="grid gap-1">Target roles (comma-separated, max 20)
-              <input className="rounded-lg border p-2" value={csvFields.targetRoles} onChange={(e) => setCsvFields((prev) => ({ ...prev, targetRoles: e.target.value }))} placeholder="Backend Engineer, Frontend Engineer" />
+              <SuggestInput value={csvFields.targetRoles} onChange={(v) => setCsvFields((prev) => ({ ...prev, targetRoles: v }))} options={ROLES} placeholder="Backend Engineer, Frontend Engineer" />
             </label>
             <label className="grid gap-1">Target locations (comma-separated, max 20)
-              <input className="rounded-lg border p-2" value={csvFields.targetLocations} onChange={(e) => setCsvFields((prev) => ({ ...prev, targetLocations: e.target.value }))} placeholder="Berlin, Remote" />
+              <SuggestInput value={csvFields.targetLocations} onChange={(v) => setCsvFields((prev) => ({ ...prev, targetLocations: v }))} options={LOCATIONS} placeholder="Berlin, Remote" />
             </label>
             <label className="grid gap-1">Preferred skills (comma-separated, max 50)
-              <input className="rounded-lg border p-2" value={csvFields.preferredSkills} onChange={(e) => setCsvFields((prev) => ({ ...prev, preferredSkills: e.target.value }))} placeholder="TypeScript, React" />
+              <SuggestInput value={csvFields.preferredSkills} onChange={(v) => setCsvFields((prev) => ({ ...prev, preferredSkills: v }))} options={SKILLS} placeholder="TypeScript, React" />
             </label>
             <label className="grid gap-1">Excluded keywords (comma-separated, max 50)
               <input className="rounded-lg border p-2" value={csvFields.excludedKeywords} onChange={(e) => setCsvFields((prev) => ({ ...prev, excludedKeywords: e.target.value }))} placeholder="senior, internship" />
             </label>
             <label className="grid gap-1">Employment types (comma-separated)
-              <input className="rounded-lg border p-2" value={csvFields.employmentTypes} onChange={(e) => setCsvFields((prev) => ({ ...prev, employmentTypes: e.target.value }))} placeholder="Full-time" />
+              <SuggestInput value={csvFields.employmentTypes} onChange={(v) => setCsvFields((prev) => ({ ...prev, employmentTypes: v }))} options={EMPLOYMENT_TYPES} placeholder="Full-time" />
             </label>
             <label className="grid gap-1">Board tokens — Greenhouse / Lever / Ashby (comma-separated, max 5)
               <input className="rounded-lg border p-2" value={csvFields.boards} onChange={(e) => setCsvFields((prev) => ({ ...prev, boards: e.target.value }))} placeholder="airbnb, stripe" />

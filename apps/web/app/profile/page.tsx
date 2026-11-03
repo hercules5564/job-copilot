@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { profileApi, ApiError, type Profile } from "../../lib/api";
+import { SuggestInput } from "../../components/suggest-input";
+import { EMPLOYMENT_TYPES, INDUSTRIES, LOCATIONS, ROLES, SKILLS, WORK_AUTHORIZATIONS } from "../../lib/reference";
 import { PageHeader, Card } from "../../components/ui";
 
 /**
@@ -244,14 +246,14 @@ export default function ProfilePage() {
             <Card>
               <h2 className="font-semibold">Targeting</h2>
               <div className="mt-3 grid gap-3">
-                <Field label="Target roles" hint="Comma-separated.">
-                  <input id="profileRoles" className={inputCls} value={form.targetRoles} onChange={(e) => set("targetRoles", e.target.value)} placeholder="Backend Engineer, Platform Engineer" />
+                <Field label="Target roles" hint="Comma-separated. Start typing for suggestions.">
+                  <SuggestInput id="profileRoles" value={form.targetRoles} onChange={(v) => set("targetRoles", v)} options={ROLES} placeholder="Backend Engineer, Platform Engineer" />
                 </Field>
-                <Field label="Skills" hint="Comma-separated.">
-                  <input id="profileSkills" className={inputCls} value={form.skills} onChange={(e) => set("skills", e.target.value)} placeholder="TypeScript, PostgreSQL, Redis" />
+                <Field label="Skills" hint="Comma-separated. Start typing for suggestions.">
+                  <SuggestInput id="profileSkills" value={form.skills} onChange={(v) => set("skills", v)} options={SKILLS} placeholder="TypeScript, PostgreSQL, Redis" />
                 </Field>
-                <Field label="Preferred locations" hint="Comma-separated.">
-                  <input id="profileLocations" className={inputCls} value={form.preferredLocations} onChange={(e) => set("preferredLocations", e.target.value)} placeholder="Berlin, Remote" />
+                <Field label="Preferred locations" hint="Comma-separated. Start typing for suggestions.">
+                  <SuggestInput id="profileLocations" value={form.preferredLocations} onChange={(v) => set("preferredLocations", v)} options={LOCATIONS} placeholder="Berlin, Remote" />
                 </Field>
                 <Field label="Work mode">
                   <select id="profileWorkMode" className={inputCls} value={form.workMode} onChange={(e) => set("workMode", e.target.value as FormState["workMode"])}>
@@ -261,11 +263,11 @@ export default function ProfilePage() {
                     <option value="ONSITE">Onsite</option>
                   </select>
                 </Field>
-                <Field label="Employment types" hint="Comma-separated.">
-                  <input id="profileEmploymentTypes" className={inputCls} value={form.employmentTypes} onChange={(e) => set("employmentTypes", e.target.value)} placeholder="Full-time, Contract" />
+                <Field label="Employment types" hint="Comma-separated. Start typing for suggestions.">
+                  <SuggestInput id="profileEmploymentTypes" value={form.employmentTypes} onChange={(v) => set("employmentTypes", v)} options={EMPLOYMENT_TYPES} placeholder="Full-time, Contract" />
                 </Field>
-                <Field label="Work authorization" hint="Comma-separated.">
-                  <input id="profileWorkAuth" className={inputCls} value={form.workAuthorization} onChange={(e) => set("workAuthorization", e.target.value)} placeholder="EU, US" />
+                <Field label="Work authorization" hint="Comma-separated. Start typing for suggestions.">
+                  <SuggestInput id="profileWorkAuth" value={form.workAuthorization} onChange={(v) => set("workAuthorization", v)} options={WORK_AUTHORIZATIONS} placeholder="EU, US" />
                 </Field>
               </div>
             </Card>
@@ -289,8 +291,8 @@ export default function ProfilePage() {
             <Card>
               <h2 className="font-semibold">Companies & industries</h2>
               <div className="mt-3 grid gap-3">
-                <Field label="Preferred industries" hint="Comma-separated.">
-                  <input id="profileIndustries" className={inputCls} value={form.preferredIndustries} onChange={(e) => set("preferredIndustries", e.target.value)} placeholder="Developer tools, Fintech" />
+                <Field label="Preferred industries" hint="Comma-separated. Start typing for suggestions.">
+                  <SuggestInput id="profileIndustries" value={form.preferredIndustries} onChange={(v) => set("preferredIndustries", v)} options={INDUSTRIES} placeholder="Developer tools, Fintech" />
                 </Field>
                 <Field label="Preferred companies" hint="Comma-separated.">
                   <input id="profilePreferredCompanies" className={inputCls} value={form.preferredCompanies} onChange={(e) => set("preferredCompanies", e.target.value)} placeholder="Acme, Globex" />
