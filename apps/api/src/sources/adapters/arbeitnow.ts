@@ -120,7 +120,7 @@ export class ArbeitnowAdapter implements JobSourceAdapter {
       if (out.length >= limit) break;
       const title = toText(item.title);
       const company = toText(item.company_name);
-      const description = toText(item.description);
+      const description = htmlToText(toText(item.description));
       const slug = toText(item.slug);
       if (!title || !company || !description || !slug) continue; // skip malformed, never invent
 
@@ -173,4 +173,20 @@ function toText(v: unknown): string {
 
 function isHttpUrl(v: string): boolean {
   return v.startsWith("https://") || v.startsWith("http://");
+}
+
+function htmlToText(raw: string): string {
+  return raw
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 8000);
 }
