@@ -1,9 +1,14 @@
 import { Router } from "express";
-import { GoogleCallbackQuerySchema } from "@jobcopilot/shared";
+import {
+  GoogleCallbackQuerySchema,
+  PasswordLoginSchema,
+  PasswordRegisterSchema,
+} from "@jobcopilot/shared";
 import { config } from "../config.js";
 import { requireAuth } from "../middleware/auth.js";
+import { validateBody } from "../middleware/validate.js";
 import { ah, requireDb } from "../middleware/db.js";
-import { isDbConfigured } from "@jobcopilot/db";
+import { isDbConfigured, prisma } from "@jobcopilot/db";
 import { findOrCreateUserForIdentity } from "../auth/account-linking.js";
 import { devBypassEnabled, frontendBaseUrl } from "../auth/auth-config.js";
 import { serializeClearCookie, serializeSessionCookie } from "../auth/cookies.js";
@@ -15,6 +20,7 @@ import {
   validateLoginState,
 } from "../auth/google.js";
 import { createSession, getSafeUser, revokeSession } from "../auth/session.js";
+import { hashPassword, verifyPassword } from "../auth/password.js";
 
 export const authRouter = Router();
 
@@ -86,6 +92,68 @@ authRouter.get(
       });
       res.redirect(302, loginRedirect("oauth_failed"));
     }
+  }),
+);
+
+/**
+ * Phase 21 — email/password registration.
+ * Creates a password-only account and a fresh server-side session.
+ * Existing emails are never silently linked (that would allow takeover of
+ * an unverified account), so duplicates return 409.
+ */
+authRouter.post(
+  "/register",
+  requireDb,
+  validateBody(PasswordRegisterSchema),
+  ah(async (req, res) => {
+    const { email, password, name } = req.body as {
+      email: string;
+      password: string;
+      name?: string;
+    };
+    const existing = await prisma.user.findUnique({ where: { email } });
+    if (existing) {
+      res.status(409).json({ error: "An account with this email already exists. Sign in instead." });
+      return;
+    }
+    const passwordHash = await hashPassword(password);
+    let user;
+    try {
+      user = await prisma.user.create({
+        data: { email, name: name ?? null, passwordHash },
+      });
+    } catch (err) {
+      if ((err as { code?: string })?.code === "P2002") {
+        res.status(409).json({ error: "An account with this email already exists. Sign in instead." });
+        return;
+      }
+      throw err;
+    }
+    const session = await createSession(user.id, { userAgent: req.headers["user-agent"] });
+    res.setHeader("Set-Cookie", serializeSessionCookie(session.token));
+    logAuth("register_succeeded", { userId: user.id });
+    res.status(201).json({ user: await getSafeUser(user.id) });
+  }),
+);
+
+/** Phase 21 — email/password login. Uniform 401 on every failure. */
+authRouter.post(
+  "/login",
+  requireDb,
+  validateBody(PasswordLoginSchema),
+  ah(async (req, res) => {
+    const { email, password } = req.body as { email: string; password: string };
+    const user = await prisma.user.findUnique({ where: { email } });
+    const valid = await verifyPassword(password, user?.passwordHash ?? null);
+    if (!user || !valid) {
+      logAuth("login_failed");
+      res.status(401).json({ error: "Invalid email or password." });
+      return;
+    }
+    const session = await createSession(user.id, { userAgent: req.headers["user-agent"] });
+    res.setHeader("Set-Cookie", serializeSessionCookie(session.token));
+    logAuth("login_succeeded", { userId: user.id });
+    res.json({ user: await getSafeUser(user.id) });
   }),
 );
 

@@ -88,6 +88,7 @@ separate integration (encrypted at rest, see Phase 6).
 - Phase 17 — Production Infrastructure, Full E2E Validation & Deployment Readiness ✅
 - Phase 16 — Personalization Validation + Application Workflow Integration ✅
 - Phase 20 — Autopilot (prepare + fill) & broader public job sources ✅
+- Phase 21 — Email + password authentication ✅
 
 ## IMPLEMENTED
 
@@ -302,7 +303,7 @@ Verified in code/tests (not just file existence):
   `DeterministicAnswerProvider`; AI drafts are review-gated and only approved
   cover letters/projects may overlay proposals).
 - Billing/subscriptions (zero code matches for stripe/billing/subscription).
-- Password authentication, MFA, enterprise SSO (Google OIDC only).
+- MFA, enterprise SSO (email/password + Google OIDC only).
 - Non-posting hiring-signal types (validated enum; only `JOB_POSTING` is produced).
 - Recruiter messaging/outreach of any kind (no sender exists).
 - Automatic application submission or recruiter messaging.
@@ -393,6 +394,8 @@ Migrations (all applied in order; none pending in files):
   indexes; FKs cascade to users, nullify to companies/jobs).
 - `20261103000000_autopilot` (Phase 20: autopilot settings + last summary
   on `discovery_configs`; no submission flag — submit stays human-confirmed).
+- `20261103000001_password_auth` (Phase 21: nullable `users.passwordHash`
+  scrypt credential; Google-only accounts keep it null).
 
 Browser/Chromium:
 
@@ -550,6 +553,8 @@ with explicit `AUTH_DEV_BYPASS=true` outside production.
 | GET | `/api/auth/google` | 302 to Google (or to `/login?error=oauth_not_configured`) |
 | GET | `/api/auth/google/callback` | state/PKCE check → session cookie → 302 `/dashboard` (failures → `/login?error=…`) |
 | GET | `/api/auth/me` | safe user fields; 401 unauthenticated |
+| POST | `/api/auth/register` | email + password signup (scrypt, min 8 chars), sets session |
+| POST | `/api/auth/login` | email + password login, sets session; uniform 401 on failure |
 | POST | `/api/auth/logout` | revoke + clear cookie; always 200 (idempotent) |
 | GET/POST | `/api/jobs` | manual entry + ingestion triggers |
 | GET/POST | `/api/applications` | tracker |
@@ -656,6 +661,11 @@ Google OIDC sign-in + server-side sessions. No passwords, no MFA, no SSO.
   `HttpOnly`, `SameSite=Lax`, `Secure` in production, 30-day `Max-Age`.
   DB holds only the SHA-256 hash. Web fetch uses `credentials: "include"`;
   nothing auth-related lives in localStorage/URLs/JS state.
+- **Email + password (Phase 21):** `POST /api/auth/register` and
+  `POST /api/auth/login`; scrypt hashes with a per-user salt (min 8 chars),
+  the same server-side session cookie, duplicate emails → 409, and uniform
+  401 on bad credentials. Unverified password accounts are never auto-linked
+  to Google by email (prevents pre-registration takeover).
 - **Logout:** `POST /api/auth/logout` revokes the session, clears the
   cookie, always returns 200 (second logout reveals nothing).
 - **Dev/test:** `AUTH_DEV_BYPASS=true` restores the legacy `x-dev-user-id`
@@ -671,7 +681,7 @@ Google OIDC sign-in + server-side sessions. No passwords, no MFA, no SSO.
   cookies/tokens (isolated contexts, fixture allowlists only); Gmail tokens
   never used as app sessions and vice versa. No CSP by design (Next inline
   runtime); helmet + SameSite + CSRF origin checks carry the model.
-- **Limitations:** Google OIDC only (no passwords/MFA/SSO); userinfo-based
+- **Limitations:** no MFA/enterprise SSO; userinfo-based
   identity validation rather than full JWT signature verification; no
   "revoke all sessions" endpoint; real Google E2E never run (no
   credentials) — login covered by mocked-HTTP fixture + production-build

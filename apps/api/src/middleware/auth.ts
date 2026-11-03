@@ -28,11 +28,18 @@ function unauthorized(res: Response): void {
   res.status(401).json({ error: "Unauthorized" });
 }
 
+function useDevUser(req: Request): void {
+  const devUser = req.headers["x-dev-user-id"] as string | undefined;
+  req.userId = devUser ?? DEV_USER_ID;
+}
+
 export function requireAuth(req: Request, res: Response, next: NextFunction): void {
-  // Explicit non-production bypass (tests/dev tooling only).
-  if (devBypassEnabled()) {
-    const devUser = req.headers["x-dev-user-id"] as string | undefined;
-    req.userId = devUser ?? DEV_USER_ID;
+  const token = getSessionToken(req.headers.cookie);
+  const devBypass = devBypassEnabled();
+
+  // No session cookie in dev/test: keep the explicit header bypass.
+  if (devBypass && !token) {
+    useDevUser(req);
     next();
     return;
   }
@@ -40,19 +47,32 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
   // Async session validation; void return keeps Express 4 sync contract.
   void (async (): Promise<void> => {
     try {
-      const token = getSessionToken(req.headers.cookie);
-      if (!token || !isDbConfigured()) {
+      if (token && isDbConfigured()) {
+        const session = await validateSession(token);
+        if (session) {
+          // A real session always wins over the dev bypass, so password /
+          // Google logins actually switch users in local development.
+          req.userId = session.userId;
+          next();
+          return;
+        }
+        // A presented but invalid/revoked session must not silently fall
+        // back to the dev user (that would hide logout/expiry bugs).
         unauthorized(res);
         return;
       }
-      const session = await validateSession(token);
-      if (!session) {
-        unauthorized(res);
+      if (devBypass) {
+        useDevUser(req);
+        next();
         return;
       }
-      req.userId = session.userId;
-      next();
+      unauthorized(res);
     } catch {
+      if (devBypass) {
+        useDevUser(req);
+        next();
+        return;
+      }
       unauthorized(res);
     }
   })();

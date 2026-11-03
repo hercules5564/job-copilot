@@ -15,6 +15,29 @@ export const GoogleCallbackQuerySchema = z.object({
 
 export type GoogleCallbackQuery = z.infer<typeof GoogleCallbackQuerySchema>;
 
+/** Email + password auth (Phase 21). Emails are normalized to lowercase. */
+export const PasswordEmailSchema = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .email()
+  .max(320);
+
+export const PasswordRegisterSchema = z.object({
+  email: PasswordEmailSchema,
+  password: z.string().min(8).max(200),
+  name: z.string().trim().min(1).max(200).optional(),
+});
+
+export type PasswordRegister = z.infer<typeof PasswordRegisterSchema>;
+
+export const PasswordLoginSchema = z.object({
+  email: PasswordEmailSchema,
+  password: z.string().min(1).max(200),
+});
+
+export type PasswordLogin = z.infer<typeof PasswordLoginSchema>;
+
 /** Safe public identity returned by GET /api/auth/me. */
 export const AuthUserSchema = z.object({
   id: z.string(),

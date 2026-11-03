@@ -39,6 +39,9 @@ model User {
   id            String    @id @default(cuid())
   email         String    @unique
   name          String?
+  // Phase 21: optional email/password credential (scrypt). Google-only
+  // accounts keep this null. Never returned to clients.
+  passwordHash  String?
   googleId      String?   @unique
   avatarUrl     String?
   emailVerifiedAt DateTime?

@@ -105,6 +105,16 @@ export const authApi = {
   googleUrl: `${API}/api/auth/google`,
   me: () => req<{ user: AuthUser }>("/api/auth/me"),
   logout: () => req<{ ok: boolean }>("/api/auth/logout", { method: "POST" }),
+  login: (body: { email: string; password: string }) =>
+    req<{ user: AuthUser }>("/api/auth/login", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  register: (body: { email: string; password: string; name?: string }) =>
+    req<{ user: AuthUser }>("/api/auth/register", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
 };
 
 export interface DiscoveryConfig {
