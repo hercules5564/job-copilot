@@ -1,0 +1,25 @@
+# JobPilot API — production image.
+# Build context: repository root. Run migrations explicitly via the
+# compose `migrate` service (never auto-applied on boot).
+FROM node:20-slim
+WORKDIR /app
+# Prisma engines link OpenSSL (schema + query engines); node:20-slim ships
+# without it, so `prisma migrate deploy` and DB queries fail in-container.
+RUN apt-get update -y && apt-get install -y --no-install-recommends openssl \
+ && rm -rf /var/lib/apt/lists/*
+COPY package.json package-lock.json ./
+COPY apps/api/package.json apps/api/package.json
+COPY apps/worker/package.json apps/worker/package.json
+COPY apps/web/package.json apps/web/package.json
+COPY packages/db/package.json packages/db/package.json
+COPY packages/queues/package.json packages/queues/package.json
+COPY packages/shared/package.json packages/shared/package.json
+RUN npm ci
+COPY . .
+RUN npm run db:generate --workspace=packages/db \
+ && npm run build --workspace=packages/shared --workspace=packages/db --workspace=packages/queues --workspace=apps/api
+ENV NODE_ENV=production API_PORT=4000
+EXPOSE 4000
+HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
+  CMD node -e "fetch('http://localhost:4000/api/health').then((r)=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"
+CMD ["node", "apps/api/dist/src/index.js"]

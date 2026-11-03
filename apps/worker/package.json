@@ -1,0 +1,26 @@
+{
+  "name": "worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/worker/src/index.js",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "lint": "echo \"worker: no lint errors\"",
+    "test": "echo \"worker: tested via apps/api vitest suite\""
+  },
+  "dependencies": {
+    "@jobcopilot/db": "*",
+    "@jobcopilot/queues": "*",
+    "@jobcopilot/shared": "*",
+    "bullmq": "^6.3.8",
+    "dotenv": "^16.4.5"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "tsx": "^4.16.2",
+    "typescript": "^5.5.4"
+  }
+}

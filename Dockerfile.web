@@ -1,0 +1,21 @@
+# JobPilot web — production image (Next.js standalone start).
+# Build context: repository root. NEXT_PUBLIC_API_BASE_URL is inlined at
+# build time — pass --build-arg to point at the deployed API origin.
+FROM node:20-slim
+WORKDIR /app
+COPY package.json package-lock.json ./
+COPY apps/api/package.json apps/api/package.json
+COPY apps/worker/package.json apps/worker/package.json
+COPY apps/web/package.json apps/web/package.json
+COPY packages/db/package.json packages/db/package.json
+COPY packages/queues/package.json packages/queues/package.json
+COPY packages/shared/package.json packages/shared/package.json
+RUN npm ci
+COPY . .
+ARG NEXT_PUBLIC_API_BASE_URL=http://localhost:4000
+ENV NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL}
+RUN npm run build --workspace=apps/web
+ENV NODE_ENV=production
+EXPOSE 3000
+WORKDIR /app/apps/web
+CMD ["node", "/app/node_modules/next/dist/bin/next", "start", "-p", "3000"]

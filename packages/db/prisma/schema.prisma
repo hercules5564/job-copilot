@@ -1,0 +1,693 @@
+// Prisma schema — Phase 1 foundation.
+// Multi-tenancy: every user-owned record carries userId.
+// pgvector: candidate/job embeddings arrive in Phase 4; extension enabled here
+// so migrations don't need rework later.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum ApplicationStatus {
+  DISCOVERED
+  MATCHED
+  REVIEW
+  READY
+  APPROVED
+  APPLIED
+  ASSESSMENT
+  RECRUITER_RESPONSE
+  INTERVIEW
+  OFFER
+  REJECTED
+  WITHDRAWN
+  ARCHIVED
+}
+
+enum WorkMode {
+  REMOTE
+  HYBRID
+  ONSITE
+  ANY
+}
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String?
+  googleId      String?   @unique
+  avatarUrl     String?
+  emailVerifiedAt DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  profile       Profile?
+  resumes       Resume[]
+  projects      Project[]
+  jobs          Job[]
+  applications  Application[]
+  jobMatches    JobMatch[]
+  integrations  Integration[]
+  emails        EmailMessage[] // Phase 6: synced Gmail metadata
+  browserSessions BrowserSession[] // Phase 7: ephemeral automation sessions (metadata only)
+  applicationRuns ApplicationRun[] // Phase 7: human-approved application assistance
+  agentTasks    AgentTask[]
+  notifications Notification[]
+  authAccounts  AuthAccount[] // Phase 9: linked OAuth/OIDC identities
+  authSessions  AuthSession[] // Phase 9: server-side login sessions
+  discoveryConfig DiscoveryConfig? // Phase 10B: automated discovery preferences
+  hiringSignals HiringSignal[] // Phase 10B: user-scoped hiring evidence
+  personalizationDrafts PersonalizationDraft[] // Phase 15: AI draft versions (review-gated)
+
+  @@map("users")
+}
+
+model Profile {
+  id                 String    @id @default(cuid())
+  userId             String    @unique
+  user               User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  fullName           String?
+  headline           String?
+  summary            String?
+  yearsOfExperience  Float?
+  education          Json?
+  rawResumeText      String?
+
+  // Preferences (spec §1)
+  targetRoles        String[]  @default([])
+  skills             String[]  @default([])
+  minSalary          Float?
+  preferredSalary    Float?
+  salaryCurrency     String    @default("USD")
+  preferredLocations String[]  @default([])
+  workMode           WorkMode  @default(ANY)
+  employmentTypes    String[]  @default([])
+  noticePeriodDays   Int?
+  workAuthorization  String[]  @default([])
+  preferredIndustries String[] @default([])
+  preferredCompanies String[]  @default([])
+  excludedCompanies  String[]  @default([])
+
+  // Embedding placeholder (Phase 4). Stored as JSON until pgvector migration lands.
+  embedding          Json?
+
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@map("profiles")
+}
+
+model Resume {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  name        String   // e.g. "Full Stack Resume"
+  targetRoles String[] @default([])
+  isActive    Boolean  @default(true)
+  fileUrl     String?
+  parsedText  String?
+  parsedJson  Json?
+
+  versions    ResumeVersion[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userId])
+  @@map("resumes")
+}
+
+model ResumeVersion {
+  id        String   @id @default(cuid())
+  resumeId  String
+  resume    Resume   @relation(fields: [resumeId], references: [id], onDelete: Cascade)
+  version   Int
+  content   Json
+  note      String?
+  createdAt DateTime @default(now())
+
+  @@unique([resumeId, version])
+  @@map("resume_versions")
+}
+
+model Project {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  name          String
+  description   String
+  technologies  String[] @default([])
+  role          String?
+  contributions String?
+  achievements  String?
+  githubUrl     String?
+  liveUrl       String?
+  startDate     DateTime?
+  endDate       DateTime?
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([userId])
+  @@map("projects")
+}
+
+model Company {
+  id        String   @id @default(cuid())
+  name      String
+  normalizedName String
+  domain    String?
+  industry  String?
+  createdAt DateTime @default(now())
+
+  jobs      Job[]
+  hiringSignals HiringSignal[] // Phase 10B: signals evidencing this company
+
+  @@unique([normalizedName])
+  @@map("companies")
+}
+
+model JobSource {
+  id        String   @id @default(cuid())
+  key       String   @unique // e.g. "manual", "greenhouse", "lever"
+  name      String
+  enabled   Boolean  @default(true)
+  config    Json?
+  createdAt DateTime @default(now())
+
+  jobs      Job[]
+
+  @@map("job_sources")
+}
+
+model Job {
+  id             String    @id @default(cuid())
+  userId         String
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  companyId      String?
+  company        Company?  @relation(fields: [companyId], references: [id])
+  companyName    String    // denormalized for fast filtering
+  normalizedCompany String  // for dedup
+
+  sourceId       String?
+  source         JobSource? @relation(fields: [sourceId], references: [id])
+  sourceKey      String    @default("manual")
+  sourceUrl      String?
+  externalId     String?   // source-side identifier for dedup
+
+  title          String
+  normalizedTitle String
+  location       String?
+  remote         Boolean   @default(false)
+  employmentType String?
+  salaryMin      Float?
+  salaryMax      Float?
+  salaryCurrency String    @default("USD")
+  description    String
+  parsedJson     Json?     // Job Analysis Agent output (Phase 4)
+  embedding      Json?     // pgvector later
+
+  postedAt       DateTime?
+  firstSeenAt    DateTime  @default(now())
+  fingerprint    String?   // dedup hash: normalizedCompany|title|location|salary
+
+  matches        JobMatch[]
+  applications   Application[]
+  runs           ApplicationRun[] // Phase 7: assisted application runs
+  hiringSignals  HiringSignal[] // Phase 10B: signals evidencing this job
+  personalizationDrafts PersonalizationDraft[] // Phase 15: drafts generated for this job
+
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@unique([userId, fingerprint])
+  // Phase 3: strongest dedup identifier (source + externalId) enforced at
+  // the DB level so concurrent ingestions stay idempotent even when the
+  // fingerprint differs. NULL externalIds (manual jobs) are unaffected —
+  // PostgreSQL treats NULLs as distinct in unique constraints.
+  @@unique([userId, sourceKey, externalId])
+  @@index([userId, createdAt])
+  @@index([normalizedCompany, normalizedTitle])
+  @@map("jobs")
+}
+
+model JobMatch {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  jobId           String
+  job             Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  overallScore    Int
+  decision        String  @default("LOW_MATCH") // Phase 4 match band
+  skillScore      Int      @default(0)
+  roleScore       Int      @default(0) // Phase 4 title/role fit
+  experienceScore Int      @default(0)
+  educationScore  Int      @default(0)
+  projectScore    Int      @default(0)
+  locationScore   Int      @default(0)
+  salaryScore     Int      @default(0)
+  employmentTypeScore Int   @default(0)
+  workAuthScore   Int      @default(0)
+
+  reasons             String[] @default([])
+  missingRequirements String[] @default([])
+  riskFlags           String[] @default([])
+  recommendedProjectIds String[] @default([])
+
+  // Phase 4 explainability (all defaulted: existing rows stay valid)
+  matchedSkills         String[] @default([])
+  missingSkills         String[] @default([])
+  matchedRequirements   String[] @default([])
+  uncertainRequirements String[] @default([])
+  warnings              String[] @default([])
+
+  // Phase 5 semantic metadata (all defaulted/optional: existing rows stay valid)
+  semanticScore    Int?
+  matchMode        String  @default("deterministic")
+  semanticProvider String?
+  semanticModel    String?
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([jobId, userId])
+  @@index([userId, overallScore])
+  @@map("job_matches")
+}
+
+model Application {
+  id        String            @id @default(cuid())
+  userId    String
+  user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  jobId     String
+  job       Job               @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  resumeId  String?
+
+  status    ApplicationStatus @default(DISCOVERED)
+  mode      String            @default("MANUAL") // AUTO | APPROVAL | MANUAL
+
+  events    ApplicationEvent[]
+  emails    EmailMessage[] // Phase 6: Gmail messages matched to this application
+  runs      ApplicationRun[] // Phase 7: assisted application runs
+  personalizationDrafts PersonalizationDraft[] // Phase 15: AI draft versions (review-gated)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, jobId])
+  @@index([userId, status])
+  @@map("applications")
+}
+
+model ApplicationEvent {
+  id            String            @id @default(cuid())
+  applicationId String
+  application   Application       @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  oldStatus     ApplicationStatus?
+  newStatus     ApplicationStatus
+  source        String            @default("USER") // USER | SYSTEM | GMAIL | WORKER
+  note          String?
+  // Phase 6: evidence link for Gmail-derived events (SetNull keeps history).
+  emailMessageId String?
+  emailMessage   EmailMessage?   @relation(fields: [emailMessageId], references: [id], onDelete: SetNull)
+  createdAt     DateTime          @default(now())
+
+  @@index([applicationId, createdAt])
+  @@index([emailMessageId])
+  @@map("application_events")
+}
+
+// Phase 9 — application authentication. Server-side sessions only: the
+// cookie holds an opaque random token, the DB holds ONLY its SHA-256 hash.
+// Raw tokens are never persisted, never logged, never returned (except in
+// the Set-Cookie header that delivers them). Separate from Gmail
+// integration tokens (Integration.encryptedToken).
+
+model AuthAccount {
+  id                String   @id @default(cuid())
+  userId            String
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  provider          String   // e.g. "google"
+  providerAccountId String   // provider-stable subject (OIDC `sub`), never a browser-supplied email
+  email             String?  // verified email as reported by the provider (display/linking aid)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+  @@map("auth_accounts")
+}
+
+model AuthSession {
+  id               String    @id @default(cuid())
+  userId           String
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  sessionTokenHash String    @unique // SHA-256 hex of the opaque cookie token
+  expiresAt        DateTime
+  createdAt        DateTime  @default(now())
+  lastSeenAt       DateTime  @default(now())
+  revokedAt        DateTime?
+  userAgent        String?   // truncated UA metadata (first 200 chars), never a secret
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("auth_sessions")
+}
+
+// ---- Phase 7+ stubs (tables exist so relations are stable; workers fill them later) ----
+
+model Integration {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider     String   // "google-gmail", ...
+  // NOTE: tokens must be encrypted at rest (Phase 6). Never log.
+  encryptedToken Json?
+  scopes       String[] @default([])
+  // Phase 6 account metadata (all optional: pre-existing rows stay valid).
+  accountEmail      String?
+  providerAccountId String?
+  status            String    @default("DISCONNECTED") // CONNECTED | DISCONNECTED | REAUTH_REQUIRED | ERROR
+  tokenExpiresAt    DateTime?
+  connectedAt       DateTime?
+  lastSyncedAt      DateTime?
+  lastSyncError     String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([userId, provider])
+  @@map("integrations")
+}
+
+model AgentTask {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  agent     String
+  task      String
+  status    String   @default("QUEUED")
+  inputRef  String?
+  outputRef String?
+  error     String?
+  model     String?
+  durationMs Int?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  runs      AgentRun[]
+
+  @@index([userId, agent, status])
+  @@map("agent_tasks")
+}
+
+model AgentRun {
+  id        String    @id @default(cuid())
+  taskId    String
+  task      AgentTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  status    String
+  log       String?
+  createdAt DateTime  @default(now())
+
+  @@map("agent_runs")
+}
+
+// Phase 10B — user-scoped discovery configuration. Explicit config wins;
+// Profile preferences fill blanks at planning time (never duplicated here).
+model DiscoveryConfig {
+  id                 String   @id @default(cuid())
+  userId             String   @unique
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  enabled            Boolean  @default(true)
+  targetRoles        String[] @default([])
+  targetLocations    String[] @default([])
+  remoteOnly         Boolean  @default(false)
+  minimumSalary      Float?
+  employmentTypes    String[] @default([])
+  experienceLevels   String[] @default([])
+  preferredSkills    String[] @default([])
+  excludedKeywords   String[] @default([])
+  sourceKeys         String[] @default(["arbeitnow"])
+  boards             String[] @default([])
+  maxJobsPerRun      Int      @default(20)
+  scheduleEnabled    Boolean  @default(false)
+  scheduleIntervalHours Int   @default(24)
+
+  // Phase 20: autopilot prepares applications up to a filled form.
+  // Submission remains human-confirmed; nothing is auto-submitted.
+  autopilotEnabled   Boolean  @default(false)
+  autopilotMinScore  Int      @default(80)
+  autopilotMaxPerRun Int      @default(3)
+  autopilotResumeId  String?
+
+  lastRunAt          DateTime?
+  lastStatus         String?
+  lastSummary        Json?
+  autopilotLastRunAt DateTime?
+  autopilotLastSummary Json?
+
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@map("discovery_configs")
+}
+
+// Phase 10B — closed hiring-signal types. Only JOB_POSTING is produced;
+// the rest are reserved, validated, and documented (never fabricated).
+enum HiringSignalType {
+  JOB_POSTING
+  OFFICIAL_HIRING_ANNOUNCEMENT
+  CAREERS_PAGE_UPDATE
+  PUBLIC_HIRING_FEED
+}
+
+// Phase 10B — user-scoped hiring-signal foundation. Signals are evidence
+// (observable public facts + bounded evidence summary), never predictions.
+// Company links reuse the shared canonical Company table via exact
+// normalized-name match only (never fuzzy merges).
+model HiringSignal {
+  id              String           @id @default(cuid())
+  userId          String
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  companyId       String?
+  company         Company?         @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  companyName     String           // denormalized, user-visible
+
+  source          String           // source registry key (e.g. "greenhouse")
+  type            HiringSignalType @default(JOB_POSTING)
+  title           String
+  url             String?
+  evidenceSummary String?          // bounded (500 chars), plain facts only
+  confidence      Int              @default(50) // 0-100, heuristic, never a promise
+
+  relatedJobId    String?
+  relatedJob      Job?             @relation(fields: [relatedJobId], references: [id], onDelete: SetNull)
+
+  dedupKey        String           // externalId- or URL-derived; unique per user+source+type
+  detectedAt      DateTime         @default(now())
+  createdAt       DateTime         @default(now())
+
+  @@unique([userId, source, type, dedupKey])
+  @@index([userId, detectedAt])
+  @@index([userId, companyId])
+  @@map("hiring_signals")
+}
+
+// Phase 15 — AI application-personalization drafts. One row per generation
+// (regeneration creates a new version; approved/user-edited rows are never
+// overwritten). REVIEW_REQUIRED until explicit human approval; approval flips
+// status only and never submits, automates, or contacts anyone. Content is
+// the validated ApplicationDraftContent object (summary, cover letter,
+// answers, selected projects, warnings). No secrets stored (provider id and
+// model name only — API keys stay in server-side environment).
+model PersonalizationDraft {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  applicationId String
+  application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  // Denormalized job snapshot for list display (job rows may change).
+  jobId       String?
+  job         Job?      @relation(fields: [jobId], references: [id], onDelete: SetNull)
+  jobTitle    String
+  jobCompany  String
+
+  type          String   @default("APPLICATION_DRAFT")
+  status        String   @default("REVIEW_REQUIRED") // DRAFT | REVIEW_REQUIRED | APPROVED | REJECTED
+  content       Json
+  provider      String   // e.g. "openai-compatible", "deterministic-test"
+  model         String?
+  promptVersion String   @default("p15-v1")
+  userEdited    Boolean  @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, applicationId])
+  @@map("personalization_drafts")
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      String
+  title     String
+  body      String?
+  read      Boolean  @default(false)
+  // Phase 6: plain refs (no FK) so notifications survive email/app deletion.
+  applicationId  String?
+  emailMessageId String?
+  createdAt DateTime @default(now())
+
+  @@index([userId, read])
+  @@map("notifications")
+}
+
+// Phase 6 — minimal Gmail metadata store. Normalized content only
+// (bodyText capped at write time); no attachments, ever.
+model EmailMessage {
+  id               String   @id @default(cuid())
+  userId           String
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  provider         String   @default("google-gmail")
+  providerMessageId String
+  threadId         String?
+
+  fromEmail        String
+  fromName         String?
+  toEmails         String[] @default([])
+  subject          String   @default("")
+  snippet          String   @default("")
+  bodyText         String   @default("")
+  receivedAt       DateTime
+
+  classification        String   @default("UNKNOWN")
+  classificationScore   Int      @default(0)
+  classificationReasons String[] @default([])
+
+  applicationId String?
+  application   Application? @relation(fields: [applicationId], references: [id], onDelete: SetNull)
+  matchStatus   String  @default("UNMATCHED") // UNMATCHED | MATCHED | NEEDS_REVIEW
+  matchReason   String?
+  matchCandidates Json?
+
+  emailEventCreated Boolean   @default(false)
+  processedAt       DateTime?
+
+  events ApplicationEvent[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, provider, providerMessageId])
+  @@index([userId, receivedAt])
+  @@index([applicationId])
+  @@map("email_messages")
+}
+
+// Phase 7 — browser automation metadata ONLY. Live browser handles stay in
+// server memory; cookies/storage/credentials are never persisted here and
+// never returned by any API.
+model BrowserSession {
+  id             String   @id @default(cuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  provider       String   @default("playwright") // playwright | demo
+  status         String   @default("CREATED")
+  currentUrl     String?
+  currentTitle   String?
+  lastActivityAt DateTime @default(now())
+  expiresAt      DateTime
+  // Phase 8: headed/manual-login support (metadata only, never credentials).
+  mode           String   @default("HEADLESS") // HEADLESS | HEADED
+  adapterId      String?
+
+  runs ApplicationRun[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, status])
+  @@map("browser_sessions")
+}
+
+// Phase 7 — one human-approved application preparation attempt.
+// Terminal success for this phase is WAITING_FOR_SUBMISSION; SUBMITTED only
+// after a second explicit user confirmation on a supporting adapter.
+model ApplicationRun {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  applicationId String
+  application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  jobId         String
+  job           Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  sessionId     String?
+  session       BrowserSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+
+  adapter       String   @default("demo") // demo | generic (closed enum)
+  status        String   @default("CREATED")
+  currentStep   String   @default("created")
+  targetUrl     String?
+  errorCode     String?
+  errorMessage  String? // safe, redacted message only
+  // Phase 8: safe recovery + submission guards (minimal, no history tables).
+  retryCount            Int       @default(0)
+  resumedFromRunId      String?
+  recoveryReason        String?
+  submissionConfirmedAt DateTime?
+  lastSafeCheckpoint    String?
+  submissionUnverified  Boolean   @default(false)
+
+  answers ApplicationAnswer[]
+
+  startedAt   DateTime?
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([userId, status])
+  @@index([applicationId, createdAt])
+  @@map("application_runs")
+}
+
+// Phase 7 — per-field proposed/approved values. Values are the user's own
+// application data (never passwords/credentials — those map to
+// UNSUPPORTED_SENSITIVE_FIELD and are never stored here).
+model ApplicationAnswer {
+  id        String   @id @default(cuid())
+  runId     String
+  run       ApplicationRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  fieldId   String
+  label     String   @default("")
+  fieldType String   @default("unknown")
+  required  Boolean  @default(false)
+  mapping   String   @default("UNKNOWN")
+  proposedValue String @default("")
+  editedValue   String?
+  source    String   @default("none")
+  status    String   @default("PROPOSED") // PROPOSED | APPROVED | EDITED | REJECTED | NEEDS_USER_INPUT
+  filled    Boolean  @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([runId, fieldId])
+  @@map("application_answers")
+}

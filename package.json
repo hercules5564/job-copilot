@@ -1,0 +1,26 @@
+{
+  "name": "job-copilot",
+  "version": "0.1.0",
+  "private": true,
+  "description": "AI Job Search Operating System — monorepo",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:api": "npm run dev --workspace=apps/api",
+    "dev:web": "npm run dev --workspace=apps/web",
+    "dev:worker": "npm run dev --workspace=apps/worker",
+    "worker": "npm run dev --workspace=apps/worker",
+    "worker:start": "npm run start --workspace=apps/worker",
+    "build": "npm run build --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "db:migrate": "npm run db:migrate --workspace=packages/db",
+    "db:generate": "npm run db:generate --workspace=packages/db"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

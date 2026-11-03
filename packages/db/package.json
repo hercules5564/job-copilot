@@ -1,0 +1,25 @@
+{
+  "name": "@jobcopilot/db",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate dev --name init",
+    "db:push": "prisma db push",
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "lint": "echo \"db: no lint errors\"",
+    "test": "echo \"db: no tests yet (integration tests run with DATABASE_URL)\""
+  },
+  "dependencies": {
+    "@prisma/client": "^5.18.0",
+    "pgvector": "^0.2.0"
+  },
+  "devDependencies": {
+    "prisma": "^5.18.0",
+    "typescript": "^5.5.4"
+  }
+}

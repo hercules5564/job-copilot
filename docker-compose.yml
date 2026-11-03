@@ -1,0 +1,113 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: jobcopilot-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: jobcopilot
+      POSTGRES_PASSWORD: jobcopilot
+      POSTGRES_DB: jobcopilot
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U jobcopilot"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: jobcopilot-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+
+  # Phase 17 — deployment services (opt-in via profiles so the default
+  # `docker compose up -d` still starts infrastructure only).
+  # Explicit migration step first (never auto-applied on boot):
+  #   docker compose --profile tools run --rm migrate
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    profiles: ["tools"]
+    environment:
+      DATABASE_URL: postgresql://jobcopilot:jobcopilot@postgres:5432/jobcopilot?schema=public
+    command: ["npx", "prisma", "migrate", "deploy", "--schema=packages/db/prisma/schema.prisma"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    profiles: ["app"]
+    restart: unless-stopped
+    ports:
+      - "4000:4000"
+    environment:
+      NODE_ENV: production
+      API_PORT: 4000
+      DATABASE_URL: postgresql://jobcopilot:jobcopilot@postgres:5432/jobcopilot?schema=public
+      REDIS_URL: redis://redis:6379
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
+      AUTH_SESSION_SECRET: ${AUTH_SESSION_SECRET:-}
+      GOOGLE_AUTH_CLIENT_ID: ${GOOGLE_AUTH_CLIENT_ID:-}
+      GOOGLE_AUTH_CLIENT_SECRET: ${GOOGLE_AUTH_CLIENT_SECRET:-}
+      GOOGLE_AUTH_REDIRECT_URI: ${GOOGLE_AUTH_REDIRECT_URI:-}
+      INTEGRATION_ENCRYPTION_KEY: ${INTEGRATION_ENCRYPTION_KEY:-}
+      AI_GENERATION_PROVIDER: ${AI_GENERATION_PROVIDER:-off}
+      AI_LLM_API_KEY: ${AI_LLM_API_KEY:-}
+      AI_LLM_BASE_URL: ${AI_LLM_BASE_URL:-https://api.openai.com/v1}
+      AI_LLM_MODEL: ${AI_LLM_MODEL:-gpt-4o-mini}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:4000/api/health').then((r)=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+    profiles: ["app"]
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://jobcopilot:jobcopilot@postgres:5432/jobcopilot?schema=public
+      REDIS_URL: redis://redis:6379
+      WORKER_ENABLED: "true"
+      AUTH_SESSION_SECRET: ${AUTH_SESSION_SECRET:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+      args:
+        NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:4000}
+    profiles: ["app"]
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    depends_on:
+      api:
+        condition: service_healthy
+
+volumes:
+  pgdata:
+  redisdata:

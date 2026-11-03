@@ -1,0 +1,27 @@
+# JobPilot production images: never bake host artifacts or secrets.
+node_modules/
+npm-debug.log*
+
+# Build output is regenerated inside the image (prisma generate + tsc / next build).
+**/dist/
+**/.next/
+packages/db/generated/
+
+# Local environment and secrets are injected at runtime, never baked in.
+.env
+.env.*
+!.env.example
+apps/*/.env*
+packages/*/.env*
+
+# VCS, editor, OS, and test artifacts.
+.git/
+.gitignore
+.vscode/
+.idea/
+.DS_Store
+coverage/
+*.log
+
+# Local browser downloads (Chromium for the API image is resolved at runtime).
+**/ms-playwright/
