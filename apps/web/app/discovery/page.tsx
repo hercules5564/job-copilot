@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { discoveryApi, signalsApi, api, type DiscoveryConfig, type HiringSignal } from "../../lib/api";
+import { SuggestInput } from "../../components/suggest-input";
+import { EMPLOYMENT_TYPES, LOCATIONS, ROLES, SKILLS } from "../../lib/reference";
 import { PageHeader, Card, Badge } from "../../components/ui";
 
 /**
@@ -31,6 +33,17 @@ const EMPTY: DiscoveryConfig = {
   autopilotResumeId: null,
 };
 
+const CSV_KEYS = [
+  "targetRoles",
+  "targetLocations",
+  "preferredSkills",
+  "excludedKeywords",
+  "employmentTypes",
+  "boards",
+] as const;
+
+type CsvKey = (typeof CSV_KEYS)[number];
+
 function csv(value: string[]): string {
   return value.join(", ");
 }
@@ -39,8 +52,22 @@ function uncsv(raw: string): string[] {
   return raw.split(",").map((s) => s.trim()).filter(Boolean);
 }
 
+function csvStateFrom(config: DiscoveryConfig): Record<CsvKey, string> {
+  return {
+    targetRoles: csv(config.targetRoles),
+    targetLocations: csv(config.targetLocations),
+    preferredSkills: csv(config.preferredSkills),
+    excludedKeywords: csv(config.excludedKeywords),
+    employmentTypes: csv(config.employmentTypes),
+    boards: csv(config.boards),
+  };
+}
+
 export default function DiscoveryPage() {
   const [config, setConfig] = useState<DiscoveryConfig>(EMPTY);
+  // Raw CSV text is kept separately so typing spaces/commas never gets
+  // re-parsed and trimmed mid-keystroke. Arrays are rebuilt only on save.
+  const [csvFields, setCsvFields] = useState<Record<CsvKey, string>>(csvStateFrom(EMPTY));
   const [sources, setSources] = useState<{ id: string; name: string; available: boolean; mock: boolean }[]>([]);
   const [status, setStatus] = useState<{ lastRunAt?: string | null; lastStatus?: string | null; lastSummary?: Record<string, number | boolean | string> | null } | null>(null);
   const [recent, setRecent] = useState<{ jobId: string; queue: string; state: string }[]>([]);
@@ -49,10 +76,15 @@ export default function DiscoveryPage() {
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
 
+  function applyConfig(next: DiscoveryConfig) {
+    setConfig(next);
+    setCsvFields(csvStateFrom(next));
+  }
+
   async function load() {
     try {
       const r = await discoveryApi.config();
-      if (r.config) setConfig({ ...EMPTY, ...r.config });
+      if (r.config) applyConfig({ ...EMPTY, ...r.config });
     } catch {
       setError("API unreachable. Start it with npm run dev:api.");
       return;
@@ -83,8 +115,17 @@ export default function DiscoveryPage() {
     setNotice("");
     setBusy(true);
     try {
-      const r = await discoveryApi.save(config);
-      setConfig({ ...EMPTY, ...r.config });
+      const payload: DiscoveryConfig = {
+        ...config,
+        targetRoles: uncsv(csvFields.targetRoles),
+        targetLocations: uncsv(csvFields.targetLocations),
+        preferredSkills: uncsv(csvFields.preferredSkills),
+        excludedKeywords: uncsv(csvFields.excludedKeywords),
+        employmentTypes: uncsv(csvFields.employmentTypes),
+        boards: uncsv(csvFields.boards).map((s) => s.toLowerCase()),
+      };
+      const r = await discoveryApi.save(payload);
+      applyConfig({ ...EMPTY, ...r.config });
       setNotice(`Configuration saved (schedule: ${r.schedule}).`);
     } catch {
       setError("Could not save configuration. Check bounds and try again.");
@@ -132,22 +173,22 @@ export default function DiscoveryPage() {
               <input type="checkbox" checked={config.enabled} onChange={(e) => set("enabled", e.target.checked)} /> Enabled
             </label>
             <label className="grid gap-1">Target roles (comma-separated, max 20)
-              <input className="rounded-lg border p-2" value={csv(config.targetRoles)} onChange={(e) => set("targetRoles", uncsv(e.target.value))} placeholder="Backend Engineer, Frontend Engineer" />
+              <SuggestInput value={csvFields.targetRoles} onChange={(v) => setCsvFields((prev) => ({ ...prev, targetRoles: v }))} options={ROLES} placeholder="Backend Engineer, Frontend Engineer" />
             </label>
             <label className="grid gap-1">Target locations (comma-separated, max 20)
-              <input className="rounded-lg border p-2" value={csv(config.targetLocations)} onChange={(e) => set("targetLocations", uncsv(e.target.value))} placeholder="Berlin, Remote" />
+              <SuggestInput value={csvFields.targetLocations} onChange={(v) => setCsvFields((prev) => ({ ...prev, targetLocations: v }))} options={LOCATIONS} placeholder="Berlin, Remote" />
             </label>
             <label className="grid gap-1">Preferred skills (comma-separated, max 50)
-              <input className="rounded-lg border p-2" value={csv(config.preferredSkills)} onChange={(e) => set("preferredSkills", uncsv(e.target.value))} placeholder="TypeScript, React" />
+              <SuggestInput value={csvFields.preferredSkills} onChange={(v) => setCsvFields((prev) => ({ ...prev, preferredSkills: v }))} options={SKILLS} placeholder="TypeScript, React" />
             </label>
             <label className="grid gap-1">Excluded keywords (comma-separated, max 50)
-              <input className="rounded-lg border p-2" value={csv(config.excludedKeywords)} onChange={(e) => set("excludedKeywords", uncsv(e.target.value))} placeholder="senior, internship" />
+              <input className="rounded-lg border p-2" value={csvFields.excludedKeywords} onChange={(e) => setCsvFields((prev) => ({ ...prev, excludedKeywords: e.target.value }))} placeholder="senior, internship" />
             </label>
             <label className="grid gap-1">Employment types (comma-separated)
-              <input className="rounded-lg border p-2" value={csv(config.employmentTypes)} onChange={(e) => set("employmentTypes", uncsv(e.target.value))} placeholder="Full-time" />
+              <SuggestInput value={csvFields.employmentTypes} onChange={(v) => setCsvFields((prev) => ({ ...prev, employmentTypes: v }))} options={EMPLOYMENT_TYPES} placeholder="Full-time" />
             </label>
             <label className="grid gap-1">Board tokens — Greenhouse / Lever / Ashby (comma-separated, max 5)
-              <input className="rounded-lg border p-2" value={csv(config.boards)} onChange={(e) => set("boards", uncsv(e.target.value).map((s) => s.toLowerCase()))} placeholder="airbnb, stripe" />
+              <input className="rounded-lg border p-2" value={csvFields.boards} onChange={(e) => setCsvFields((prev) => ({ ...prev, boards: e.target.value }))} placeholder="airbnb, stripe" />
             </label>
             <div className="flex gap-3">
               <label className="grid flex-1 gap-1">Max jobs/run (1–50)

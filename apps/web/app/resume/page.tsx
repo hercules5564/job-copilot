@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { resumesApi, ApiError, type Resume, type ResumeVersion } from "../../lib/api";
+import { SuggestInput } from "../../components/suggest-input";
+import { ROLES } from "../../lib/reference";
 import { PageHeader, Card, Badge } from "../../components/ui";
 
 /**
@@ -64,8 +66,8 @@ function FormFields({ form, set, prefix }: { form: ResumeForm; set: (f: ResumeFo
       <Field label="Name *">
         <input id={`${prefix}Name`} className={inputCls} value={form.name} onChange={setK("name")} placeholder="Full Stack Resume" maxLength={200} required />
       </Field>
-      <Field label="Target roles" hint="Comma-separated.">
-        <input id={`${prefix}Roles`} className={inputCls} value={form.targetRoles} onChange={setK("targetRoles")} placeholder="Backend Engineer, Platform Engineer" />
+      <Field label="Target roles" hint="Comma-separated. Start typing for suggestions.">
+        <SuggestInput id={`${prefix}Roles`} value={form.targetRoles} onChange={(v) => set({ ...form, targetRoles: v })} options={ROLES} placeholder="Backend Engineer, Platform Engineer" />
       </Field>
       <Field label="File URL" hint="Link to an already-hosted file. No upload here.">
         <input id={`${prefix}FileUrl`} className={inputCls} inputMode="url" value={form.fileUrl} onChange={setK("fileUrl")} placeholder="https://example.com/resume.pdf" maxLength={2000} />
