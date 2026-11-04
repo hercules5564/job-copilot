@@ -11,8 +11,10 @@ import { isDbConfigured } from "@jobcopilot/db";
  * requests get a consistent 401 (no existence oracle).
  *
  * Development/test ONLY: when AUTH_DEV_BYPASS=true (and never in
- * production), the legacy `x-dev-user-id` header still works so existing
- * tooling/tests keep functioning. Production fails closed.
+ * production), an EXPLICIT `x-dev-user-id` header still works so existing
+ * tooling/tests keep functioning. The header is never inferred: a request
+ * without a session cookie and without the header is unauthenticated even
+ * when the bypass flag is enabled. Production fails closed.
  */
 declare global {
   namespace Express {
@@ -22,32 +24,39 @@ declare global {
   }
 }
 
-const DEV_USER_ID = "dev-user-1";
-
 function unauthorized(res: Response): void {
   res.status(401).json({ error: "Unauthorized" });
 }
 
-function useDevUser(req: Request): void {
-  const devUser = req.headers["x-dev-user-id"] as string | undefined;
-  req.userId = devUser ?? DEV_USER_ID;
+function requestedDevUser(req: Request): string | null {
+  const raw = req.headers["x-dev-user-id"];
+  const value = Array.isArray(raw) ? raw[0] : raw;
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed.slice(0, 200) : null;
 }
 
 export function requireAuth(req: Request, res: Response, next: NextFunction): void {
   const token = getSessionToken(req.headers.cookie);
   const devBypass = devBypassEnabled();
+  const devUser = devBypass ? requestedDevUser(req) : null;
 
-  // No session cookie in dev/test: keep the explicit header bypass.
-  if (devBypass && !token) {
-    useDevUser(req);
-    next();
+  // Explicit dev/test header only. No header means unauthenticated; this is
+  // what prevents the local app from silently acting as a fake signed-in user.
+  if (!token) {
+    if (devUser) {
+      req.userId = devUser;
+      next();
+      return;
+    }
+    unauthorized(res);
     return;
   }
 
   // Async session validation; void return keeps Express 4 sync contract.
   void (async (): Promise<void> => {
     try {
-      if (token && isDbConfigured()) {
+      if (isDbConfigured()) {
         const session = await validateSession(token);
         if (session) {
           // A real session always wins over the dev bypass, so password /
@@ -61,18 +70,9 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
         unauthorized(res);
         return;
       }
-      if (devBypass) {
-        useDevUser(req);
-        next();
-        return;
-      }
+      // A cookie was presented but cannot be validated without the database.
       unauthorized(res);
     } catch {
-      if (devBypass) {
-        useDevUser(req);
-        next();
-        return;
-      }
       unauthorized(res);
     }
   })();

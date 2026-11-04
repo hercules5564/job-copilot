@@ -1,7 +1,9 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { authApi, ApiError } from "../../lib/api";
+import { markSessionActive, safeNextPath } from "../../lib/auth-redirect";
 import { GoogleIcon, ArrowRight } from "../../components/icons";
 import { AuthLandscape } from "../../components/site/pixel";
 
@@ -27,12 +29,14 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [expired, setExpired] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [next, setNext] = useState<string | null>(null);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const code = params.get("error");
     if (code) setError(ERROR_COPY[code] ?? "Sign-in failed. Please try again.");
     if (params.get("expired") === "1") setExpired(true);
+    setNext(safeNextPath(params.get("next")));
   }, []);
 
   function switchMode(next: Mode) {
@@ -69,7 +73,8 @@ export default function LoginPage() {
           ...(name.trim() ? { name: name.trim() } : {}),
         });
       }
-      window.location.href = "/dashboard";
+      markSessionActive();
+      window.location.href = next ?? "/dashboard";
     } catch (err) {
       if (err instanceof ApiError) {
         if (err.status === 401) setError("Invalid email or password.");
@@ -86,7 +91,10 @@ export default function LoginPage() {
 
   function signInWithGoogle() {
     setBusy(true);
-    window.location.href = authApi.googleUrl;
+    const url = next
+      ? `${authApi.googleUrl}?next=${encodeURIComponent(next)}`
+      : authApi.googleUrl;
+    window.location.href = url;
   }
 
   return (
@@ -106,12 +114,16 @@ export default function LoginPage() {
       <div className="cf-auth-form">
         <div className="mx-auto w-full max-w-[380px]">
           <div className="mb-7">
-            <div className="flex items-center gap-2">
+            <Link
+              href="/"
+              className="inline-flex items-center gap-2 rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+              aria-label="Back to JobPilot home"
+            >
               <span className="cf-wordmark-mark" aria-hidden="true" style={{ color: "var(--ink)" }}>
                 <i /> <i /> <i /> <i /> <i /> <i /> <i /> <i /> <i />
               </span>
               <span className="cf-serif text-[25px] leading-none">JobPilot</span>
-            </div>
+            </Link>
             <h1 className="mt-5 text-[28px] leading-[1.12] tracking-[-0.02em]">
               {mode === "login" ? "Sign in to JobPilot" : "Create your account"}
             </h1>

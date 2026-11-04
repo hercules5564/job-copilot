@@ -17,6 +17,7 @@ import {
   type Job,
   type Notification,
 } from "../../lib/api";
+import { redirectToLogin } from "../../lib/auth-redirect";
 import { PageHeader, Stat, Card, Badge } from "../../components/ui";
 
 /**
@@ -132,7 +133,7 @@ export default function DashboardPage() {
       } catch (e) {
         if (cancelled) return;
         if (e instanceof ApiError && e.status === 401) {
-          window.location.href = "/login?expired=1";
+          redirectToLogin({ expired: true });
           return;
         }
         setError("Could not load the dashboard. Start the API with npm run dev:api.");

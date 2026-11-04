@@ -723,6 +723,105 @@ body {
   color: var(--ink-faint);
 }
 
+/* Autocomplete (job role + location) */
+.cf-autocomplete {
+  position: relative;
+  width: 100%;
+}
+
+.cf-autocomplete-panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  z-index: 80;
+  max-height: 300px;
+  overflow-y: auto;
+  margin: 0;
+  padding: 5px;
+  list-style: none;
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-pop);
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-4px) scale(0.99);
+  transform-origin: top center;
+  pointer-events: none;
+  transition:
+    opacity 140ms var(--ease-out),
+    transform 140ms var(--ease-out),
+    visibility 140ms var(--ease-out);
+}
+
+.cf-autocomplete-panel.is-open {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0) scale(1);
+  pointer-events: auto;
+}
+
+.cf-autocomplete-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 10px;
+  border-radius: 7px;
+  color: var(--ink-soft);
+  font-size: 13.5px;
+  line-height: 1.25;
+  cursor: pointer;
+  user-select: none;
+  transition: background 120ms ease, color 120ms ease;
+}
+
+.cf-autocomplete-option[data-active="true"] {
+  background: var(--surface-sunken);
+  color: var(--ink);
+}
+
+.cf-autocomplete-option mark {
+  background: transparent;
+  color: var(--blue);
+  font-weight: 600;
+}
+
+.cf-autocomplete-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px;
+  color: var(--ink-muted);
+  font-size: 12.5px;
+  line-height: 1.35;
+}
+
+.cf-autocomplete-spinner {
+  width: 12px;
+  height: 12px;
+  flex: 0 0 auto;
+  border: 2px solid var(--line-strong);
+  border-top-color: var(--blue);
+  border-radius: 50%;
+  animation: cf-spin 700ms linear infinite;
+}
+
+@keyframes cf-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cf-autocomplete-panel {
+    transition: none;
+  }
+  .cf-autocomplete-spinner {
+    animation: none;
+  }
+}
+
 .cf-mobile-panel {
   position: fixed;
   inset: 78px 12px auto;

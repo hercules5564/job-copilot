@@ -2,7 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { profileApi, ApiError, type Profile } from "../../lib/api";
+import { redirectToLogin } from "../../lib/auth-redirect";
 import { PageHeader, Card } from "../../components/ui";
+import { Autocomplete } from "../../components/autocomplete";
 
 /**
  * Phase 12A — profile/preferences editor over the existing PUT/GET API.
@@ -111,7 +113,26 @@ function toForm(p: Profile): FormState {
   };
 }
 
-function Field({ label, children, hint }: { label: string; children: React.ReactNode; hint?: string }) {
+function Field({
+  label,
+  children,
+  hint,
+  htmlFor,
+}: {
+  label: string;
+  children: React.ReactNode;
+  hint?: string;
+  htmlFor?: string;
+}) {
+  if (htmlFor) {
+    return (
+      <div className="grid gap-1 text-sm" style={{ color: "inherit" }}>
+        <label htmlFor={htmlFor} className="font-medium">{label}</label>
+        {children}
+        {hint ? <span style={{ color: "var(--muted)" }}>{hint}</span> : null}
+      </div>
+    );
+  }
   return (
     <label className="grid gap-1 text-sm" style={{ color: "inherit" }}>
       <span className="font-medium">{label}</span>
@@ -140,7 +161,7 @@ export default function ProfilePage() {
       })
       .catch((e) => {
         if (e instanceof ApiError && e.status === 401) {
-          window.location.href = "/login?expired=1";
+          redirectToLogin({ expired: true });
           return;
         }
         if (e instanceof ApiError && e.status === 404) {
@@ -199,7 +220,7 @@ export default function ProfilePage() {
       setNotice("Profile saved.");
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
-        window.location.href = "/login?expired=1";
+        redirectToLogin({ expired: true });
         return;
       }
       setError("Could not save your profile. Check the values and try again.");
@@ -244,14 +265,32 @@ export default function ProfilePage() {
             <Card>
               <h2 className="font-semibold">Targeting</h2>
               <div className="mt-3 grid gap-3">
-                <Field label="Target roles" hint="Comma-separated.">
-                  <input id="profileRoles" className={inputCls} value={form.targetRoles} onChange={(e) => set("targetRoles", e.target.value)} placeholder="Backend Engineer, Platform Engineer" />
+                <Field label="Target roles" hint="Comma-separated. Pick a suggestion or type your own." htmlFor="profileRoles">
+                  <Autocomplete
+                    id="profileRoles"
+                    kind="role"
+                    mode="csv"
+                    className={inputCls}
+                    value={form.targetRoles}
+                    onChange={(value) => set("targetRoles", value)}
+                    placeholder="Backend Engineer, Platform Engineer"
+                    data-testid="profile-roles"
+                  />
                 </Field>
                 <Field label="Skills" hint="Comma-separated.">
                   <input id="profileSkills" className={inputCls} value={form.skills} onChange={(e) => set("skills", e.target.value)} placeholder="TypeScript, PostgreSQL, Redis" />
                 </Field>
-                <Field label="Preferred locations" hint="Comma-separated.">
-                  <input id="profileLocations" className={inputCls} value={form.preferredLocations} onChange={(e) => set("preferredLocations", e.target.value)} placeholder="Berlin, Remote" />
+                <Field label="Preferred locations" hint="Comma-separated. Pick a suggestion or type your own." htmlFor="profileLocations">
+                  <Autocomplete
+                    id="profileLocations"
+                    kind="location"
+                    mode="csv"
+                    className={inputCls}
+                    value={form.preferredLocations}
+                    onChange={(value) => set("preferredLocations", value)}
+                    placeholder="Berlin, Remote"
+                    data-testid="profile-locations"
+                  />
                 </Field>
                 <Field label="Work mode">
                   <select id="profileWorkMode" className={inputCls} value={form.workMode} onChange={(e) => set("workMode", e.target.value as FormState["workMode"])}>

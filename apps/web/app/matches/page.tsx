@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { api, ApiError, type JobMatch, type Job } from "../../lib/api";
+import { redirectToLogin } from "../../lib/auth-redirect";
 import { PageHeader, Card, Badge } from "../../components/ui";
 
 /**
@@ -35,7 +36,7 @@ export default function MatchesPage() {
       .then((r) => setMatches(r.matches))
       .catch((e) => {
         if (e instanceof ApiError && e.status === 401) {
-          window.location.href = "/login?expired=1";
+          redirectToLogin({ expired: true });
           return;
         }
         setError("Could not load matches. Start the API with npm run dev:api.");

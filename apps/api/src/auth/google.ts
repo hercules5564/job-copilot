@@ -2,6 +2,7 @@ import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypt
 import type { ProviderIdentity } from "@jobcopilot/shared";
 import { authSecret, authSecretReady, googleAuthConfig, OAUTH_STATE_TTL_MS } from "./auth-config.js";
 import { badRequest, HttpError } from "../services/errors.js";
+import { safeNextPath } from "./redirect.js";
 
 /**
  * Phase 9 — Google OIDC login for the main application (separate from
@@ -49,12 +50,14 @@ export interface IssuedState {
   state: string;
 }
 
-/** Issue a signed login state token (embeds the PKCE verifier). */
-export function issueLoginState(verifier?: string): IssuedState {
+/** Issue a signed login state token (embeds the PKCE verifier + destination). */
+export function issueLoginState(verifier?: string, next?: string | null): IssuedState {
+  const safeNext = safeNextPath(next);
   const payload = JSON.stringify({
     purpose: "app-login",
     nonce: randomBytes(16).toString("hex"),
     verifier: verifier ?? randomBytes(32).toString("base64url"),
+    ...(safeNext ? { next: safeNext } : {}),
     exp: Date.now() + OAUTH_STATE_TTL_MS,
   });
   const encoded = base64UrlEncode(payload);
@@ -64,6 +67,7 @@ export function issueLoginState(verifier?: string): IssuedState {
 
 export interface ValidatedState {
   verifier: string;
+  next: string | null;
 }
 
 /** Validate state signature + expiry + purpose. Returns the PKCE verifier. */
@@ -87,7 +91,13 @@ export function validateLoginState(state: string): ValidatedState {
   }
   const actual = base64UrlDecode(sig);
   if (actual.length !== expected!.length || !timingSafeEqual(actual, expected!)) fail();
-  let payload: { purpose?: unknown; nonce?: unknown; verifier?: unknown; exp?: unknown };
+  let payload: {
+    purpose?: unknown;
+    nonce?: unknown;
+    verifier?: unknown;
+    next?: unknown;
+    exp?: unknown;
+  };
   try {
     payload = JSON.parse(payloadRaw!.toString("utf8")) as typeof payload;
   } catch {
@@ -102,15 +112,18 @@ export function validateLoginState(state: string): ValidatedState {
   ) {
     fail();
   }
-  return { verifier: payload!.verifier as string };
+  return {
+    verifier: payload!.verifier as string,
+    next: safeNextPath(payload!.next),
+  };
 }
 
 /** Build the Google authorization URL (302 target for GET /api/auth/google). */
-export function buildLoginUrl(): string {
+export function buildLoginUrl(next?: string | null): string {
   requireAppGoogleConfigured();
   const cfg = googleAuthConfig()!;
   const verifier = randomBytes(32).toString("base64url");
-  const { state } = issueLoginState(verifier);
+  const { state } = issueLoginState(verifier, next);
   const challenge = base64UrlEncode(createHash("sha256").update(verifier, "utf8").digest());
   const params = new URLSearchParams({
     client_id: cfg.clientId,

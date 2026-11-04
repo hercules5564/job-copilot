@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { api, ApiError, type Job, type JobMatch } from "../../../lib/api";
+import { redirectToLogin } from "../../../lib/auth-redirect";
 import { plainText } from "../../../lib/text";
 import { PageHeader, Card, Badge } from "../../../components/ui";
 
@@ -50,7 +51,7 @@ export default function JobDetailPage({ params }: { params: { id: string } }) {
       } catch (e) {
         if (cancelled) return;
         if (e instanceof ApiError && e.status === 401) {
-          window.location.href = "/login?expired=1";
+          redirectToLogin({ expired: true });
           return;
         }
         if (e instanceof ApiError && e.status === 404) {

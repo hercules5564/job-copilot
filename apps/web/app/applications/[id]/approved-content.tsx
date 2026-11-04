@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { personalizationApi, ApiError, type PersonalizationDraft } from "../../../lib/api";
+import { redirectToLogin } from "../../../lib/auth-redirect";
 import { Card, Badge } from "../../../components/ui";
 
 /**
@@ -23,7 +24,7 @@ export default function ApprovedContentSection({ applicationId }: { applicationI
       })
       .catch((e) => {
         if (e instanceof ApiError && e.status === 401) {
-          window.location.href = "/login?expired=1";
+          redirectToLogin({ expired: true });
           return;
         }
         setLoaded(true);

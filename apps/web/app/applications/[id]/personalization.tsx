@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { personalizationApi, ApiError, type PersonalizationDraft, type DraftFact } from "../../../lib/api";
+import { redirectToLogin } from "../../../lib/auth-redirect";
 import { Card, Badge } from "../../../components/ui";
 
 /**
@@ -64,7 +65,7 @@ export default function PersonalizationSection({ applicationId }: { applicationI
       }
     } catch (e) {
       if (e instanceof ApiError && e.status === 401) {
-        window.location.href = "/login?expired=1";
+        redirectToLogin({ expired: true });
         return;
       }
       setError("Could not load personalization. Start the API with npm run dev:api.");

@@ -5,6 +5,13 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { authApi, ApiError, notificationsApi, type AuthUser, type Notification } from "../lib/api";
 import {
+  clearSessionHint,
+  currentAppPath,
+  hadActiveSession,
+  loginPath,
+  markSessionActive,
+} from "../lib/auth-redirect";
+import {
   BellIcon,
   BoltIcon,
   BriefcaseIcon,
@@ -67,6 +74,30 @@ const NAV_GROUPS = [
   { label: "System", items: NAV.slice(12) },
 ];
 
+function AuthGate({ message }: { message?: string }) {
+  return (
+    <div
+      className="flex min-h-screen items-center justify-center bg-[var(--bg)] px-6"
+      data-testid="auth-gate"
+    >
+      <div className="flex flex-col items-center gap-4 text-center">
+        <span className="cf-wordmark-mark" aria-hidden="true" style={{ color: "var(--ink)" }}>
+          <i /> <i /> <i /> <i /> <i /> <i /> <i /> <i /> <i />
+        </span>
+        <span className="cf-serif text-[24px] leading-none">JobPilot</span>
+        <p className="app-loading m-0 text-[13px]">
+          {message ?? "Checking your session…"}
+        </p>
+        {message ? (
+          <Link href="/login" className="cf-btn cf-btn-light cf-btn-sm">
+            Sign in
+          </Link>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 function ThemeToggle({ compact = false }: { compact?: boolean }) {
   const [dark, setDark] = useState(false);
 
@@ -116,6 +147,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
   const [panelOpen, setPanelOpen] = useState(false);
   const [panelItems, setPanelItems] = useState<Notification[]>([]);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [authError, setAuthError] = useState("");
 
   // Phase 9: automation fixtures stay public (Playwright targets + E2E).
   const isPublic =
@@ -130,15 +162,26 @@ export function Shell({ children }: { children: React.ReactNode }) {
       setAuthChecked(true);
       return;
     }
+    setAuthError("");
     authApi
       .me()
       .then((r) => {
         setUser(r.user);
+        markSessionActive();
         setAuthChecked(true);
       })
       .catch((e) => {
-        if (e instanceof ApiError && e.status === 401) router.push("/login?expired=1");
-        else setAuthChecked(true);
+        setUser(null);
+        if (e instanceof ApiError && e.status === 401) {
+          const next = currentAppPath();
+          const expired = hadActiveSession();
+          setAuthError("Please sign in to continue.");
+          router.replace(loginPath({ next, expired }));
+          setAuthChecked(true);
+          return;
+        }
+        setAuthError("We couldn't verify your session. Please sign in again.");
+        setAuthChecked(true);
       });
   }, [isPublic, router]);
 
@@ -210,17 +253,24 @@ export function Shell({ children }: { children: React.ReactNode }) {
     );
   }
 
+  // Fail closed: protected pages never render until the session is confirmed.
+  if (!isPublic && (!authChecked || !user)) {
+    return <AuthGate message={authError || undefined} />;
+  }
+
   async function logout() {
     try {
       await authApi.logout();
     } catch {
       // Cookie cleared server-side regardless; always leave.
     }
+    clearSessionHint();
     setUser(null);
     setUnread(0);
     setPanelOpen(false);
     setPanelItems([]);
-    router.push("/login");
+    setAuthError("");
+    router.replace("/login");
   }
 
   function isActive(href: string) {

@@ -21,11 +21,20 @@ import {
 } from "../auth/google.js";
 import { createSession, getSafeUser, revokeSession } from "../auth/session.js";
 import { hashPassword, verifyPassword } from "../auth/password.js";
+import { safeNextPath } from "../auth/redirect.js";
 
 export const authRouter = Router();
 
-function loginRedirect(code: string): string {
-  return `${frontendBaseUrl()}/login?error=${encodeURIComponent(code)}`;
+function loginRedirect(code: string, next?: unknown): string {
+  const params = new URLSearchParams({ error: code });
+  const safeNext = safeNextPath(next);
+  if (safeNext) params.set("next", safeNext);
+  const base = frontendBaseUrl().replace(/\/$/, "");
+  return `${base}/login?${params.toString()}`;
+}
+
+function queryNext(value: unknown): string | null {
+  return typeof value === "string" ? safeNextPath(value) : null;
 }
 
 function logAuth(event: string, detail: Record<string, unknown> = {}): void {
@@ -41,13 +50,14 @@ function logAuth(event: string, detail: Record<string, unknown> = {}): void {
  */
 authRouter.get(
   "/google",
-  ah(async (_req, res) => {
+  ah(async (req, res) => {
+    const next = queryNext(req.query.next);
     if (!isAppGoogleConfigured()) {
-      res.redirect(302, loginRedirect("oauth_not_configured"));
+      res.redirect(302, loginRedirect("oauth_not_configured", next));
       return;
     }
     logAuth("login_initiated");
-    res.redirect(302, buildLoginUrl());
+    res.redirect(302, buildLoginUrl(next));
   }),
 );
 
@@ -69,8 +79,11 @@ authRouter.get(
       return;
     }
     let verifier: string;
+    let next: string | null;
     try {
-      verifier = validateLoginState(parsed.data.state).verifier;
+      const validated = validateLoginState(parsed.data.state);
+      verifier = validated.verifier;
+      next = validated.next;
     } catch {
       logAuth("callback_invalid_state");
       res.redirect(302, loginRedirect("invalid_state"));
@@ -85,12 +98,13 @@ authRouter.get(
       });
       res.setHeader("Set-Cookie", serializeSessionCookie(session.token));
       logAuth("login_succeeded", { userId });
-      res.redirect(302, `${frontendBaseUrl()}/dashboard`);
+      const base = frontendBaseUrl().replace(/\/$/, "");
+      res.redirect(302, `${base}${next ?? "/dashboard"}`);
     } catch (err) {
       logAuth("callback_failed", {
         status: typeof (err as { status?: unknown })?.status === "number" ? (err as { status: number }).status : 500,
       });
-      res.redirect(302, loginRedirect("oauth_failed"));
+      res.redirect(302, loginRedirect("oauth_failed", next));
     }
   }),
 );

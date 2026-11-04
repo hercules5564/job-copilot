@@ -2,7 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { resumesApi, ApiError, type Resume, type ResumeVersion } from "../../lib/api";
+import { redirectToLogin } from "../../lib/auth-redirect";
 import { PageHeader, Card, Badge } from "../../components/ui";
+import { Autocomplete } from "../../components/autocomplete";
 
 /**
  * Phase 12A — resume management over the existing metadata/content CRUD.
@@ -42,7 +44,26 @@ function toBody(f: ResumeForm): Record<string, unknown> {
   };
 }
 
-function Field({ label, children, hint }: { label: string; children: React.ReactNode; hint?: string }) {
+function Field({
+  label,
+  children,
+  hint,
+  htmlFor,
+}: {
+  label: string;
+  children: React.ReactNode;
+  hint?: string;
+  htmlFor?: string;
+}) {
+  if (htmlFor) {
+    return (
+      <div className="grid gap-1 text-sm">
+        <label htmlFor={htmlFor} className="font-medium">{label}</label>
+        {children}
+        {hint ? <span style={{ color: "var(--muted)" }}>{hint}</span> : null}
+      </div>
+    );
+  }
   return (
     <label className="grid gap-1 text-sm">
       <span className="font-medium">{label}</span>
@@ -64,8 +85,17 @@ function FormFields({ form, set, prefix }: { form: ResumeForm; set: (f: ResumeFo
       <Field label="Name *">
         <input id={`${prefix}Name`} className={inputCls} value={form.name} onChange={setK("name")} placeholder="Full Stack Resume" maxLength={200} required />
       </Field>
-      <Field label="Target roles" hint="Comma-separated.">
-        <input id={`${prefix}Roles`} className={inputCls} value={form.targetRoles} onChange={setK("targetRoles")} placeholder="Backend Engineer, Platform Engineer" />
+      <Field label="Target roles" hint="Comma-separated. Pick a suggestion or type your own." htmlFor={`${prefix}Roles`}>
+        <Autocomplete
+          id={`${prefix}Roles`}
+          kind="role"
+          mode="csv"
+          className={inputCls}
+          value={form.targetRoles}
+          onChange={(value) => set({ ...form, targetRoles: value })}
+          placeholder="Backend Engineer, Platform Engineer"
+          data-testid={`${prefix}-roles`}
+        />
       </Field>
       <Field label="File URL" hint="Link to an already-hosted file. No upload here.">
         <input id={`${prefix}FileUrl`} className={inputCls} inputMode="url" value={form.fileUrl} onChange={setK("fileUrl")} placeholder="https://example.com/resume.pdf" maxLength={2000} />
@@ -100,7 +130,7 @@ export default function ResumePage() {
       setResumes(r.resumes);
     } catch (e) {
       if (e instanceof ApiError && e.status === 401) {
-        window.location.href = "/login?expired=1";
+        redirectToLogin({ expired: true });
         return;
       }
       setError("Could not load resumes. Start the API with npm run dev:api.");

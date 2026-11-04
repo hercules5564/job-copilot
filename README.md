@@ -195,9 +195,13 @@ Verified in code/tests (not just file existence):
   (403 on mismatch; absent headers = non-browser client, allowed). OAuth
   callback relies on signed state/PKCE, not cookies.
 - Frontend auth: `/login` (Continue with Google, loading/error/expired
-  states), shell user menu (avatar/name/email + Logout), unauthenticated
-  app pages redirect to `/login?expired=1`; fixtures (`/demo-application`,
-  `/ats-demo/*`) stay public. Web fetch uses `credentials: "include"`.
+  states), shell user menu (avatar/name/email + Logout). Protected app pages
+  fail closed behind an auth gate and redirect to
+  `/login?next=<original-path>` (adding `expired=1` when a prior session
+  existed); the destination is validated to prevent open redirects and is
+  restored after email/password or Google sign-in. Fixtures
+  (`/demo-application`, `/ats-demo/*`) stay public. Web fetch uses
+  `credentials: "include"`.
   Security headers in `next.config.mjs` (nosniff, referrer-policy,
   `X-Frame-Options: DENY`, minimal permissions-policy; no CSP by design).
 - Background workers (Phase 10A, `packages/queues/` + `apps/worker/`):
