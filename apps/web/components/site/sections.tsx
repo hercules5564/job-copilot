@@ -242,9 +242,9 @@ const WORDS = [
 ];
 
 const CELL_TONES = [
-  { bg: "rgba(200, 232, 107, 0.55)", ink: "#3b5113" },
-  { bg: "rgba(26, 111, 209, 0.18)", ink: "#134d91" },
-  { bg: "rgba(241, 207, 85, 0.5)", ink: "#6d530e" },
+  { bg: "var(--word-1-bg)", ink: "var(--word-1-ink)" },
+  { bg: "var(--word-2-bg)", ink: "var(--word-2-ink)" },
+  { bg: "var(--word-3-bg)", ink: "var(--word-3-ink)" },
 ];
 
 function buildWordGrid() {
@@ -399,7 +399,7 @@ export function FooterCta() {
                 </span>
                 <span>review</span>
               </div>
-              <div className="mt-3 flex items-center justify-between rounded-[7px] border border-[var(--line)] bg-[rgba(255,255,255,0.6)] px-3 py-2 text-[10px] text-[var(--ink-faint)]">
+              <div className="cf-footer-preview-input mt-3 flex items-center justify-between rounded-[7px] px-3 py-2 text-[10px] text-[var(--ink-faint)]">
                 <span>Ask JobPilot to run a task...</span>
                 <span className="cf-chat-send">↑</span>
               </div>
