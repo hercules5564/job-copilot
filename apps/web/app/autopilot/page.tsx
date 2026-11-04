@@ -34,7 +34,7 @@ const EMPTY: DiscoveryConfig = {
 
 function statusTone(status: string): string {
   if (status === "filled") return "var(--fg)";
-  if (status === "failed" || status === "blocked") return "#b91c1c";
+  if (status === "failed" || status === "blocked") return "var(--danger)";
   return "var(--muted)";
 }
 

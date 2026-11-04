@@ -69,19 +69,36 @@ const NAV_GROUPS = [
 
 function ThemeToggle({ compact = false }: { compact?: boolean }) {
   const [dark, setDark] = useState(false);
+
   useEffect(() => {
-    setDark(document.documentElement.classList.contains("dark"));
+    const sync = () => setDark(document.documentElement.classList.contains("dark"));
+    sync();
+    window.addEventListener("jobpilot-theme-change", sync);
+    window.addEventListener("storage", sync);
+    return () => {
+      window.removeEventListener("jobpilot-theme-change", sync);
+      window.removeEventListener("storage", sync);
+    };
   }, []);
+
+  function toggle() {
+    const next = !dark;
+    setDark(next);
+    document.documentElement.classList.toggle("dark", next);
+    try {
+      localStorage.setItem("jobpilot-theme", next ? "dark" : "light");
+    } catch {
+      // Storage can be unavailable in privacy modes; the DOM class still works.
+    }
+    window.dispatchEvent(new Event("jobpilot-theme-change"));
+  }
+
   return (
     <button
       type="button"
       className={compact ? "cf-icon-btn" : "app-nav-link"}
       style={compact ? { width: 34, height: 34, borderColor: "var(--line)", background: "var(--surface-raised)", color: "var(--ink)" } : undefined}
-      onClick={() => {
-        const next = !dark;
-        setDark(next);
-        document.documentElement.classList.toggle("dark", next);
-      }}
+      onClick={toggle}
       aria-label="Toggle theme"
     >
       {dark ? <SunIcon width={16} height={16} /> : <MoonIcon width={16} height={16} />}

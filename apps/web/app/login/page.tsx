@@ -144,18 +144,12 @@ export default function LoginPage() {
           </div>
 
           {expired ? (
-            <p
-              className="mt-4 rounded-[7px] border border-[#f0d48a] bg-[#fbf4de] px-3 py-2 text-[12.5px] text-[#7a5b10]"
-              data-testid="login-expired"
-            >
+            <p className="cf-alert cf-alert-warning mt-4" data-testid="login-expired">
               Your session expired. Please sign in again.
             </p>
           ) : null}
           {error ? (
-            <p
-              className="mt-4 rounded-[7px] border border-[#ecc0b8] bg-[#fbeeeb] px-3 py-2 text-[12.5px] text-[#9a3a2a]"
-              data-testid="login-error"
-            >
+            <p className="cf-alert cf-alert-danger mt-4" data-testid="login-error">
               {error}
             </p>
           ) : null}
