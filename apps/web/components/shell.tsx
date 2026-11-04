@@ -4,6 +4,27 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { authApi, ApiError, notificationsApi, type AuthUser, type Notification } from "../lib/api";
+import {
+  BellIcon,
+  BoltIcon,
+  BriefcaseIcon,
+  ChartIcon,
+  CloseIcon,
+  CompassIcon,
+  DashboardIcon,
+  FileIcon,
+  FolderIcon,
+  InboxIcon,
+  LogoutIcon,
+  MenuIcon,
+  MoonIcon,
+  PlugIcon,
+  RadarIcon,
+  SettingsIcon,
+  SunIcon,
+  TargetIcon,
+  UserIcon,
+} from "./icons";
 
 const NAV = [
   { href: "/dashboard", label: "Dashboard" },
@@ -22,15 +43,40 @@ const NAV = [
   { href: "/settings", label: "Settings" },
 ];
 
-function ThemeToggle() {
+const ICONS: Record<string, (p: { width?: number; height?: number }) => JSX.Element> = {
+  "/dashboard": DashboardIcon,
+  "/jobs": BriefcaseIcon,
+  "/discovery": CompassIcon,
+  "/autopilot": BoltIcon,
+  "/matches": TargetIcon,
+  "/applications": FileIcon,
+  "/resume": FileIcon,
+  "/projects": FolderIcon,
+  "/profile": UserIcon,
+  "/leads": RadarIcon,
+  "/inbox": InboxIcon,
+  "/analytics": ChartIcon,
+  "/integrations": PlugIcon,
+  "/settings": SettingsIcon,
+};
+
+const NAV_GROUPS = [
+  { label: "Workspace", items: NAV.slice(0, 6) },
+  { label: "Career", items: NAV.slice(6, 9) },
+  { label: "Signals", items: NAV.slice(9, 12) },
+  { label: "System", items: NAV.slice(12) },
+];
+
+function ThemeToggle({ compact = false }: { compact?: boolean }) {
   const [dark, setDark] = useState(false);
   useEffect(() => {
     setDark(document.documentElement.classList.contains("dark"));
   }, []);
   return (
     <button
-      className="rounded-lg border px-3 py-1.5 text-sm"
-      style={{ borderColor: "var(--border)" }}
+      type="button"
+      className={compact ? "cf-icon-btn" : "app-nav-link"}
+      style={compact ? { width: 34, height: 34, borderColor: "var(--line)", background: "var(--surface-raised)", color: "var(--ink)" } : undefined}
       onClick={() => {
         const next = !dark;
         setDark(next);
@@ -38,7 +84,8 @@ function ThemeToggle() {
       }}
       aria-label="Toggle theme"
     >
-      {dark ? "Light" : "Dark"}
+      {dark ? <SunIcon width={16} height={16} /> : <MoonIcon width={16} height={16} />}
+      {compact ? null : <span>{dark ? "Light" : "Dark"}</span>}
     </button>
   );
 }
@@ -51,9 +98,11 @@ export function Shell({ children }: { children: React.ReactNode }) {
   const [unread, setUnread] = useState(0);
   const [panelOpen, setPanelOpen] = useState(false);
   const [panelItems, setPanelItems] = useState<Notification[]>([]);
+  const [mobileOpen, setMobileOpen] = useState(false);
 
   // Phase 9: automation fixtures stay public (Playwright targets + E2E).
   const isPublic =
+    pathname === "/" ||
     pathname === "/login" ||
     pathname === "/demo-application" ||
     pathname === "/ats-demo" ||
@@ -98,6 +147,19 @@ export function Shell({ children }: { children: React.ReactNode }) {
     };
   }, [isPublic, user]);
 
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [pathname]);
+
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previous;
+    };
+  }, [mobileOpen]);
+
   async function openPanel() {
     if (!panelOpen) {
       try {
@@ -121,7 +183,15 @@ export function Shell({ children }: { children: React.ReactNode }) {
     router.push(n.applicationId ? `/applications/${n.applicationId}` : "/inbox");
   }
 
-  if (pathname === "/login") return <main className="mx-auto w-full max-w-6xl flex-1 p-6">{children}</main>;
+  if (pathname === "/") return <>{children}</>;
+
+  if (pathname === "/login") {
+    return (
+      <main className="mx-auto flex min-h-screen w-full max-w-5xl items-center px-4 py-6">
+        {children}
+      </main>
+    );
+  }
 
   async function logout() {
     try {
@@ -136,120 +206,236 @@ export function Shell({ children }: { children: React.ReactNode }) {
     router.push("/login");
   }
 
+  function isActive(href: string) {
+    return pathname === href || pathname.startsWith(href + "/");
+  }
+
   return (
-    <div className="flex min-h-screen">
-      <aside
-        className="hidden w-60 shrink-0 flex-col border-r p-4 md:flex"
-        style={{ borderColor: "var(--border)", background: "var(--card)" }}
-      >
-        <div className="mb-6 flex items-start justify-between px-2">
-          <div>
-            <div className="text-lg font-bold">Job Copilot</div>
-            <div className="text-xs" style={{ color: "var(--muted)" }}>
-              AI job-search OS
-            </div>
-          </div>
-          {authChecked && user ? (
-            <div className="relative">
-              <button
-                onClick={openPanel}
-                data-testid="notification-bell"
-                aria-label="Notifications"
-                className="relative rounded-lg border px-2.5 py-1.5 text-sm"
-                style={{ borderColor: "var(--border)" }}
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
-                  <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
-                </svg>
-                {unread > 0 ? (
-                  <span
-                    data-testid="notification-badge"
-                    className="absolute -right-2 -top-2 flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[11px] font-semibold"
-                    style={{ background: "var(--fg)", color: "var(--bg)" }}
+    <div className="app-shell">
+      <aside className="app-sidebar">
+        <Link href="/dashboard" className="app-brand">
+          <span className="cf-wordmark-mark" aria-hidden="true" style={{ color: "var(--ink)" }}>
+            <i /> <i /> <i /> <i /> <i /> <i /> <i /> <i /> <i />
+          </span>
+          <span className="app-brand-text">
+            <strong>JobPilot</strong>
+            <span>Job-search OS</span>
+          </span>
+        </Link>
+
+        <nav className="app-nav" aria-label="Primary">
+          {NAV_GROUPS.map((group) => (
+            <div key={group.label}>
+              <div className="app-nav-group">{group.label}</div>
+              {group.items.map((n) => {
+                const Icon = ICONS[n.href] ?? DashboardIcon;
+                return (
+                  <Link
+                    key={n.href}
+                    href={n.href}
+                    className={`app-nav-link ${isActive(n.href) ? "is-active" : ""}`}
                   >
-                    {unread > 99 ? "99+" : unread}
-                  </span>
-                ) : null}
-              </button>
-              {panelOpen ? (
-                <div
-                  data-testid="notification-panel"
-                  className="absolute right-0 z-10 mt-2 w-72 rounded-lg border p-2"
-                  style={{ borderColor: "var(--border)", background: "var(--card)" }}
-                >
-                  {panelItems.length === 0 ? (
-                    <p className="p-2 text-xs" style={{ color: "var(--muted)" }}>
-                      You are all caught up.
-                    </p>
-                  ) : (
-                    panelItems.map((n) => (
-                      <button
-                        key={n.id}
-                        onClick={() => openNotification(n)}
-                        className="block w-full rounded-lg px-2 py-1.5 text-left text-xs hover:opacity-80"
-                      >
-                        <span className="block truncate font-medium">{n.title}</span>
-                        {n.body ? (
-                          <span className="block truncate" style={{ color: "var(--muted)" }}>
-                            {n.body}
-                          </span>
-                        ) : null}
-                      </button>
-                    ))
-                  )}
-                </div>
-              ) : null}
+                    <span className="app-nav-icon">
+                      <Icon width={14} height={14} />
+                    </span>
+                    {n.label}
+                  </Link>
+                );
+              })}
             </div>
-          ) : null}
-        </div>
-        <nav className="flex flex-col gap-1">
-          {NAV.map((n) => (
-            <Link
-              key={n.href}
-              href={n.href}
-              className={`rounded-lg px-3 py-2 text-sm ${
-                pathname === n.href || pathname.startsWith(n.href + "/")
-                  ? "font-semibold"
-                  : ""
-              }`}
-              style={
-                pathname === n.href || pathname.startsWith(n.href + "/")
-                  ? { background: "var(--bg)" }
-                  : undefined
-              }
-            >
-              {n.label}
-            </Link>
           ))}
         </nav>
-        <div className="mt-auto flex flex-col gap-2 px-2 pt-4">
+
+        <div className="app-sidebar-foot">
           {authChecked && user ? (
-            <div className="flex items-center gap-2 rounded-lg border p-2" style={{ borderColor: "var(--border)" }} data-testid="user-menu">
+            <button
+              type="button"
+              onClick={openPanel}
+              data-testid="notification-bell"
+              aria-label="Notifications"
+              className="relative flex w-full items-center gap-2 rounded-[7px] border border-transparent px-2 py-1.5 text-left text-[12px] text-[var(--ink-muted)] transition-colors hover:border-[var(--line)] hover:bg-[var(--surface-raised)] hover:text-[var(--ink)]"
+            >
+              <BellIcon width={15} height={15} />
+              <span className="flex-1">Notifications</span>
+              {unread > 0 ? (
+                <span
+                  data-testid="notification-badge"
+                  className="flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--ink)] px-1 text-[10px] font-semibold text-[var(--bg)]"
+                >
+                  {unread > 99 ? "99+" : unread}
+                </span>
+              ) : null}
+            </button>
+          ) : null}
+          {authChecked && user ? (
+            <div className="app-user" data-testid="user-menu">
               {user.avatarUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={user.avatarUrl} alt="" className="h-8 w-8 rounded-full" referrerPolicy="no-referrer" />
+                <img src={user.avatarUrl} alt="" className="app-avatar" referrerPolicy="no-referrer" />
               ) : (
-                <span className="flex h-8 w-8 items-center justify-center rounded-full border text-sm font-semibold" style={{ borderColor: "var(--border)" }}>
+                <span className="app-avatar">
                   {(user.name ?? user.email).slice(0, 1).toUpperCase()}
                 </span>
               )}
-              <span className="min-w-0 flex-1 truncate text-xs" title={user.email}>
+              <span className="min-w-0 flex-1 truncate text-[11.5px]" title={user.email}>
                 {user.name ?? user.email}
               </span>
-              <button onClick={logout} data-testid="logout" className="rounded-lg border px-2 py-1 text-xs" style={{ borderColor: "var(--border)" }}>
-                Logout
+              <button
+                onClick={logout}
+                data-testid="logout"
+                aria-label="Logout"
+                title="Logout"
+                className="flex h-7 w-7 items-center justify-center rounded-md text-[var(--ink-faint)] transition-colors hover:bg-[var(--surface-sunken)] hover:text-[var(--ink)]"
+              >
+                <LogoutIcon width={14} height={14} />
+                <span className="sr-only">Logout</span>
               </button>
             </div>
           ) : authChecked ? (
-            <Link href="/login" data-testid="signin-link" className="rounded-lg border px-3 py-1.5 text-center text-sm" style={{ borderColor: "var(--border)" }}>
+            <Link href="/login" data-testid="signin-link" className="cf-btn cf-btn-light cf-btn-sm w-full">
               Sign in
             </Link>
           ) : null}
           <ThemeToggle />
         </div>
       </aside>
-      <main className="mx-auto w-full max-w-6xl flex-1 p-6">{children}</main>
+
+      <div className="app-main">
+        <div className="app-topbar">
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              className="cf-icon-btn"
+              aria-label={mobileOpen ? "Close navigation" : "Open navigation"}
+              aria-expanded={mobileOpen}
+              onClick={() => setMobileOpen((v) => !v)}
+              style={{ width: 34, height: 34, borderColor: "var(--line)", background: "var(--surface-raised)", color: "var(--ink)" }}
+            >
+              {mobileOpen ? <CloseIcon width={17} height={17} /> : <MenuIcon width={17} height={17} />}
+            </button>
+            <Link href="/dashboard" className="flex items-center gap-2 no-underline" style={{ color: "var(--ink)" }}>
+              <span className="cf-wordmark-mark" aria-hidden="true" style={{ width: 18, height: 18 }}>
+                <i /> <i /> <i /> <i /> <i /> <i /> <i /> <i /> <i />
+              </span>
+              <span className="cf-serif text-[20px]">JobPilot</span>
+            </Link>
+          </div>
+          <div className="flex items-center gap-1.5">
+            {authChecked && user ? (
+              <button
+                type="button"
+                onClick={openPanel}
+                data-testid="notification-bell-mobile"
+                aria-label="Notifications"
+                className="relative flex h-8 w-8 items-center justify-center rounded-md border border-[var(--line)] bg-[var(--surface-raised)] text-[var(--ink-soft)]"
+              >
+                <BellIcon width={15} height={15} />
+                {unread > 0 ? (
+                  <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--ink)] px-1 text-[9px] font-semibold text-[var(--bg)]">
+                    {unread > 99 ? "99+" : unread}
+                  </span>
+                ) : null}
+              </button>
+            ) : null}
+            <ThemeToggle compact />
+          </div>
+        </div>
+
+        {mobileOpen ? (
+          <div className="app-mobile-panel min-[880px]:hidden">
+            <div className="mb-3 flex items-center justify-between px-1">
+              <span className="cf-mono text-[9px] text-[var(--ink-faint)]">Navigate</span>
+              <button
+                type="button"
+                onClick={() => setMobileOpen(false)}
+                className="flex h-7 w-7 items-center justify-center rounded-md border border-[var(--line)] text-[var(--ink-muted)]"
+                aria-label="Close navigation"
+              >
+                <CloseIcon width={14} height={14} />
+              </button>
+            </div>
+            {NAV_GROUPS.map((group) => (
+              <div key={group.label}>
+                <div className="app-nav-group">{group.label}</div>
+                {group.items.map((n) => {
+                  const Icon = ICONS[n.href] ?? DashboardIcon;
+                  return (
+                    <Link
+                      key={n.href}
+                      href={n.href}
+                      onClick={() => setMobileOpen(false)}
+                      className={`app-nav-link ${isActive(n.href) ? "is-active" : ""}`}
+                    >
+                      <span className="app-nav-icon">
+                        <Icon width={14} height={14} />
+                      </span>
+                      {n.label}
+                    </Link>
+                  );
+                })}
+              </div>
+            ))}
+            <div className="mt-4 border-t border-[var(--line)] pt-3">
+              {authChecked && user ? (
+                <div className="flex items-center gap-2">
+                  <span className="app-avatar">
+                    {(user.name ?? user.email).slice(0, 1).toUpperCase()}
+                  </span>
+                  <span className="min-w-0 flex-1 truncate text-[12px]">{user.name ?? user.email}</span>
+                  <button
+                    onClick={logout}
+                    className="cf-btn cf-btn-light cf-btn-sm"
+                    aria-label="Log out"
+                  >
+                    Log out
+                  </button>
+                </div>
+              ) : authChecked ? (
+                <Link href="/login" data-testid="signin-link-mobile" className="cf-btn cf-btn-light cf-btn-sm w-full">
+                  Sign in
+                </Link>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
+
+        <main className="app-content">{children}</main>
+      </div>
+
+      {panelOpen ? (
+        <div
+          data-testid="notification-panel"
+          className="fixed right-3 top-[70px] z-[80] w-[min(340px,calc(100vw-24px))] rounded-[12px] border border-[var(--line)] bg-[var(--surface-raised)] p-2 shadow-[var(--shadow-pop)]"
+        >
+          <div className="flex items-center justify-between px-2 py-1.5">
+            <span className="cf-mono text-[9px] text-[var(--ink-faint)]">Notifications</span>
+            <button
+              type="button"
+              onClick={() => setPanelOpen(false)}
+              className="flex h-6 w-6 items-center justify-center rounded-md text-[var(--ink-muted)] hover:bg-[var(--surface-sunken)]"
+              aria-label="Close notifications"
+            >
+              <CloseIcon width={13} height={13} />
+            </button>
+          </div>
+          {panelItems.length === 0 ? (
+            <p className="p-2 text-xs text-[var(--ink-muted)]">You are all caught up.</p>
+          ) : (
+            panelItems.map((n) => (
+              <button
+                key={n.id}
+                onClick={() => openNotification(n)}
+                className="block w-full rounded-lg px-2 py-2 text-left text-xs transition-colors hover:bg-[var(--surface-sunken)]"
+              >
+                <span className="block truncate font-medium text-[var(--ink)]">{n.title}</span>
+                {n.body ? (
+                  <span className="block truncate text-[var(--ink-muted)]">{n.body}</span>
+                ) : null}
+              </button>
+            ))
+          )}
+        </div>
+      ) : null}
     </div>
   );
 }

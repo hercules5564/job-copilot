@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { authApi, ApiError } from "../../lib/api";
-import { Card } from "../../components/ui";
+import { GoogleIcon, ArrowRight } from "../../components/icons";
+import { AuthLandscape } from "../../components/site/pixel";
 
 /**
  * Sign-in page: email + password (Phase 21) with optional Google OIDC.
@@ -88,121 +89,146 @@ export default function LoginPage() {
     window.location.href = authApi.googleUrl;
   }
 
-  const inputCls = "rounded-lg border p-2 text-sm";
-
   return (
-    <div className="mx-auto max-w-md pt-16">
-      <div className="mb-6 text-center">
-        <div className="text-2xl font-bold">JobPilot</div>
-        <div className="mt-1 text-sm" style={{ color: "var(--muted)" }}>
-          AI job-search operating system
+    <div className="cf-auth w-full">
+      <div className="cf-auth-art">
+        <AuthLandscape />
+        <div className="cf-auth-art-copy">
+          <span className="cf-mono text-[9px] text-white/65">JobPilot</span>
+          <h2 className="mt-3">Run your entire job search with AI agents.</h2>
+          <p>
+            Discover roles, match them against your real experience, and prepare
+            applications with human-approved context.
+          </p>
         </div>
       </div>
-      <Card>
-        <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={() => switchMode("login")}
-            className={`flex-1 rounded-lg border px-3 py-2 text-sm font-medium ${mode === "login" ? "" : "opacity-60"}`}
-            style={{ borderColor: "var(--border)" }}
-          >
-            Sign in
-          </button>
-          <button
-            type="button"
-            onClick={() => switchMode("register")}
-            className={`flex-1 rounded-lg border px-3 py-2 text-sm font-medium ${mode === "register" ? "" : "opacity-60"}`}
-            style={{ borderColor: "var(--border)" }}
-          >
-            Create account
-          </button>
-        </div>
 
-        <h1 className="mt-4 text-lg font-semibold">
-          {mode === "login" ? "Sign in to JobPilot" : "Create your JobPilot account"}
-        </h1>
-        <p className="mt-1 text-sm" style={{ color: "var(--muted)" }}>
-          {mode === "login"
-            ? "Use your email and password, or continue with Google."
-            : "Email and password only — you can add Google later."}
-        </p>
+      <div className="cf-auth-form">
+        <div className="mx-auto w-full max-w-[380px]">
+          <div className="mb-7">
+            <div className="flex items-center gap-2">
+              <span className="cf-wordmark-mark" aria-hidden="true" style={{ color: "var(--ink)" }}>
+                <i /> <i /> <i /> <i /> <i /> <i /> <i /> <i /> <i />
+              </span>
+              <span className="cf-serif text-[25px] leading-none">JobPilot</span>
+            </div>
+            <h1 className="mt-5 text-[28px] leading-[1.12] tracking-[-0.02em]">
+              {mode === "login" ? "Sign in to JobPilot" : "Create your account"}
+            </h1>
+            <p className="mt-2 text-[13.5px] leading-relaxed text-[var(--ink-muted)]">
+              {mode === "login"
+                ? "Use your email and password, or continue with Google."
+                : "Email and password only — you can add Google later."}
+            </p>
+          </div>
 
-        {expired ? (
-          <p className="mt-3 text-sm" data-testid="login-expired">
-            Your session expired. Please sign in again.
-          </p>
-        ) : null}
-        {error ? (
-          <p className="mt-3 text-sm" data-testid="login-error">{error}</p>
-        ) : null}
+          <div className="cf-auth-tabs" role="tablist" aria-label="Account mode">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={mode === "login"}
+              onClick={() => switchMode("login")}
+              className="cf-auth-tab"
+            >
+              Sign in
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={mode === "register"}
+              onClick={() => switchMode("register")}
+              className="cf-auth-tab"
+            >
+              Create account
+            </button>
+          </div>
 
-        <form onSubmit={submit} className="mt-4 grid gap-3">
-          {mode === "register" ? (
-            <label className="grid gap-1 text-sm">
-              <span className="font-medium">Name (optional)</span>
+          {expired ? (
+            <p
+              className="mt-4 rounded-[7px] border border-[#f0d48a] bg-[#fbf4de] px-3 py-2 text-[12.5px] text-[#7a5b10]"
+              data-testid="login-expired"
+            >
+              Your session expired. Please sign in again.
+            </p>
+          ) : null}
+          {error ? (
+            <p
+              className="mt-4 rounded-[7px] border border-[#ecc0b8] bg-[#fbeeeb] px-3 py-2 text-[12.5px] text-[#9a3a2a]"
+              data-testid="login-error"
+            >
+              {error}
+            </p>
+          ) : null}
+
+          <form onSubmit={submit} className="mt-5 grid gap-3.5">
+            {mode === "register" ? (
+              <label className="cf-label">
+                <span>Name (optional)</span>
+                <input
+                  className="cf-input"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="Ada Lovelace"
+                  maxLength={200}
+                  autoComplete="name"
+                />
+              </label>
+            ) : null}
+            <label className="cf-label">
+              <span>Email</span>
               <input
-                className={inputCls}
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Ada Lovelace"
-                maxLength={200}
-                autoComplete="name"
+                className="cf-input"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="you@example.com"
+                maxLength={320}
+                autoComplete="email"
+                required
               />
             </label>
-          ) : null}
-          <label className="grid gap-1 text-sm">
-            <span className="font-medium">Email</span>
-            <input
-              className={inputCls}
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="you@example.com"
-              maxLength={320}
-              autoComplete="email"
-              required
-            />
-          </label>
-          <label className="grid gap-1 text-sm">
-            <span className="font-medium">Password</span>
-            <input
-              className={inputCls}
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder={mode === "register" ? "At least 8 characters" : "Your password"}
-              maxLength={200}
-              autoComplete={mode === "login" ? "current-password" : "new-password"}
-              required
-            />
-          </label>
+            <label className="cf-label">
+              <span>Password</span>
+              <input
+                className="cf-input"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder={mode === "register" ? "At least 8 characters" : "Your password"}
+                maxLength={200}
+                autoComplete={mode === "login" ? "current-password" : "new-password"}
+                required
+              />
+            </label>
+            <button
+              type="submit"
+              disabled={busy}
+              data-testid="login-submit"
+              className="cf-btn cf-btn-dark mt-1 w-full"
+            >
+              {busy ? "Please wait…" : mode === "login" ? "Sign in" : "Create account"}
+              {!busy ? <ArrowRight width={15} height={15} /> : null}
+            </button>
+          </form>
+
+          <div className="cf-auth-divider">or</div>
+
           <button
-            type="submit"
+            onClick={signInWithGoogle}
             disabled={busy}
-            data-testid="login-submit"
-            className="w-full rounded-lg border px-4 py-2.5 text-sm font-medium disabled:opacity-60"
-            style={{ borderColor: "var(--border)" }}
+            data-testid="login-google"
+            className="cf-btn cf-btn-light w-full"
           >
-            {busy ? "Please wait…" : mode === "login" ? "Sign in" : "Create account"}
+            <GoogleIcon width={16} height={16} />
+            Continue with Google
           </button>
-        </form>
 
-        <div className="my-4 flex items-center gap-3 text-xs" style={{ color: "var(--muted)" }}>
-          <span className="h-px flex-1" style={{ background: "var(--border)" }} />
-          or
-          <span className="h-px flex-1" style={{ background: "var(--border)" }} />
+          <p className="mt-6 text-center text-[11px] leading-relaxed text-[var(--ink-faint)]">
+            Sessions are server-side and secure. Nothing auth-related is stored
+            in your browser&apos;s local storage.
+          </p>
         </div>
-
-        <button
-          onClick={signInWithGoogle}
-          disabled={busy}
-          data-testid="login-google"
-          className="w-full rounded-lg border px-4 py-2.5 text-sm font-medium disabled:opacity-60"
-          style={{ borderColor: "var(--border)" }}
-        >
-          Continue with Google
-        </button>
-      </Card>
+      </div>
     </div>
   );
 }
