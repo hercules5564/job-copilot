@@ -24,7 +24,7 @@ function Bar({ value, max, label }: { value: number; max: number; label: string 
         role="img"
         aria-label={`${label}: ${value} of ${max}`}
       >
-        <div className="h-full rounded-full" style={{ width: `${pct}%`, background: "var(--fg)" }} />
+        <div className="h-full rounded-full" style={{ width: `${pct}%`, background: "var(--blue)" }} />
       </div>
     </div>
   );

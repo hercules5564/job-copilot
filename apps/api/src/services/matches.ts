@@ -1,6 +1,7 @@
 import { prisma } from "@jobcopilot/db";
 import type { JobMatchUpsertInput, UpdateJobMatchInput } from "@jobcopilot/shared";
 import { notFound, mapPrismaError } from "./errors.js";
+import { isLikelyEnglish } from "./language.js";
 
 /**
  * Persist explicitly supplied match data. No scoring happens here —
@@ -26,7 +27,7 @@ export async function listMatches(
   userId: string,
   filters: { minScore?: number; decision?: string } = {},
 ) {
-  return prisma.jobMatch.findMany({
+  const rows = await prisma.jobMatch.findMany({
     where: {
       userId,
       ...(filters.minScore !== undefined ? { overallScore: { gte: filters.minScore } } : {}),
@@ -34,10 +35,30 @@ export async function listMatches(
     },
     orderBy: { overallScore: "desc" },
     include: {
-      job: { select: { id: true, title: true, companyName: true, location: true } },
+      job: {
+        select: {
+          id: true,
+          title: true,
+          companyName: true,
+          location: true,
+          description: true,
+        },
+      },
     },
-    take: 200,
+    take: 400,
   });
+
+  return rows
+    .filter((row) => (row.job ? isLikelyEnglish(row.job.title, row.job.description) : true))
+    .slice(0, 200)
+    .map((row) => {
+      if (!row.job) return row;
+      // Description is only fetched for language detection; keep the public
+      // match payload as small as it was before.
+      const { description: _description, ...job } = row.job;
+      void _description;
+      return { ...row, job };
+    });
 }
 
 export async function getMatchForJob(userId: string, jobId: string) {

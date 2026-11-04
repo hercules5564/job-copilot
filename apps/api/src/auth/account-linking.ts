@@ -1,5 +1,6 @@
 import { prisma } from "@jobcopilot/db";
 import type { ProviderIdentity } from "@jobcopilot/shared";
+import { conflict } from "../services/errors.js";
 
 /**
  * Phase 9 — safe account linking.
@@ -30,6 +31,12 @@ export async function findOrCreateUserForIdentity(identity: ProviderIdentity): P
 
   const existing = await prisma.user.findUnique({ where: { email: identity.email } });
   if (existing) {
+    // Never link a Google identity onto an unverified password account:
+    // anyone could have registered that email first. The owner must sign in
+    // with the password (or verify the email in a future flow) before linking.
+    if (existing.passwordHash && !existing.emailVerifiedAt) {
+      throw conflict("An account with this email already exists. Sign in with your password.");
+    }
     await prisma.$transaction([
       prisma.authAccount.create({
         data: {

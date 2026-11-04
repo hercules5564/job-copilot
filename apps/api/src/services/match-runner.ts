@@ -12,6 +12,7 @@ import { HybridMatchProvider, SemanticMatchProvider } from "./semantic-matcher.j
 import { extractSkills, normalizeCandidateSkills } from "./skill-normalizer.js";
 import { notFound } from "./errors.js";
 import { ensureUser } from "./users.js";
+import { isLikelyEnglish } from "./language.js";
 
 registerMatchProvider(new SemanticMatchProvider());
 registerMatchProvider(new HybridMatchProvider());
@@ -327,10 +328,13 @@ export async function runMatches(
   const jobs = await prisma.job.findMany({
     where: { userId },
     orderBy: { createdAt: "desc" },
-    take: capped,
+    take: Math.min(capped * 4, 200),
   });
+  const englishJobs = jobs
+    .filter((job) => isLikelyEnglish(job.title, job.description))
+    .slice(0, capped);
   const matches: MatchResult[] = [];
-  for (const job of jobs) {
+  for (const job of englishJobs) {
     const snapshot = jobToSnapshot(job);
     const result = await matchWithMode(candidate, snapshot, effectiveMode);
     await persistResult(userId, job.id, result, candidate, snapshot);
