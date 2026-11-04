@@ -7,6 +7,7 @@ import {
 import { notFound, unprocessable } from "./errors.js";
 import { createApplication, transitionApplication } from "./applications.js";
 import * as runs from "../browser/run-service.js";
+import { isLikelyEnglish } from "./language.js";
 
 const BLOCKED_HOSTS = [
   /(^|\.)linkedin\.com$/i,
@@ -41,7 +42,7 @@ export async function runAutopilot(
   const limit = Math.min(input.limit ?? config.autopilotMaxPerRun, 10);
   const resumeId = await resolveResumeId(userId, config.autopilotResumeId);
 
-  const matches = await prisma.jobMatch.findMany({
+  const candidates = await prisma.jobMatch.findMany({
     where: {
       userId,
       overallScore: { gte: minScore },
@@ -53,9 +54,12 @@ export async function runAutopilot(
       },
     },
     orderBy: { overallScore: "desc" },
-    take: limit,
+    take: Math.min(limit * 4, 200),
     include: { job: true },
   });
+  const matches = candidates
+    .filter((match) => isLikelyEnglish(match.job.title, match.job.description))
+    .slice(0, limit);
 
   const items: AutopilotItem[] = [];
   for (const match of matches) {

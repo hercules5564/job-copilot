@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { prisma } from "@jobcopilot/db";
 import type { CreateJobInput, UpdateJobInput } from "@jobcopilot/shared";
 import { notFound, conflict, mapPrismaError } from "./errors.js";
+import { isLikelyEnglish } from "./language.js";
 
 /** Normalize for dedup: lowercase, trim, collapse whitespace/punctuation. */
 export function normalize(value: string): string {
@@ -39,9 +40,14 @@ export async function listJobs(userId: string) {
   const jobs = await prisma.job.findMany({
     where: { userId },
     orderBy: { createdAt: "desc" },
-    take: 200,
+    take: 400,
   });
-  return jobs.map(serializeJob);
+  // Existing rows may predate the English-only ingestion rule. Filter at read
+  // time as well so the product never shows a non-English description.
+  return jobs
+    .filter((job) => isLikelyEnglish(job.title, job.description))
+    .slice(0, 200)
+    .map(serializeJob);
 }
 
 export async function getJob(userId: string, id: string) {

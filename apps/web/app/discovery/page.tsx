@@ -121,7 +121,7 @@ export default function DiscoveryPage() {
 
   return (
     <div>
-      <PageHeader title="Discovery" sub="Automated job discovery over permitted public sources." />
+      <PageHeader title="Discovery" sub="Automated job discovery over permitted public sources. Only English-language listings are kept." />
       {error ? <Card><p className="text-sm" data-testid="discovery-error">{error}</p></Card> : null}
       {notice ? <Card><p className="text-sm" data-testid="discovery-notice">{notice}</p></Card> : null}
       <div className="mt-4 grid gap-4 md:grid-cols-2">

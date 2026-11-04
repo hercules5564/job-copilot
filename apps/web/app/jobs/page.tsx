@@ -115,7 +115,7 @@ export default function JobsPage() {
 
   return (
     <div>
-      <PageHeader title="Jobs" sub="Ingest from a registered source or add a job manually (Phase 3)." />
+      <PageHeader title="Jobs" sub="Ingest from a registered source or add a job manually. Non-English listings are filtered out." />
       {error ? <Card className="mb-4"><p className="text-sm">{error}</p></Card> : null}
       <Card>
         <h2 className="font-semibold">Ingest jobs</h2>

@@ -14,6 +14,7 @@ import {
 } from "./job-deduplicator.js";
 import { ensureUser } from "./users.js";
 import { normalize, serializeJob } from "./jobs.js";
+import { isLikelyEnglish } from "./language.js";
 
 const MAX_ERROR_ENTRIES = 20;
 
@@ -133,6 +134,13 @@ export async function ingestJobs(
     if (problem) {
       result.rejected += 1;
       pushError(job.externalId, problem);
+      continue;
+    }
+    // Product rule: JobPilot is English-only. Reject non-English postings at
+    // ingestion so they never enter the user's queue, matches, or autopilot.
+    if (!isLikelyEnglish(job.title, job.description)) {
+      result.rejected += 1;
+      pushError(job.externalId, "Non-English job rejected");
       continue;
     }
     result.normalized += 1;
