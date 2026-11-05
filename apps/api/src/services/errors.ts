@@ -26,6 +26,14 @@ export function unprocessable(message: string): HttpError {
   return new HttpError(422, message);
 }
 
+export function serviceUnavailable(message: string): HttpError {
+  return new HttpError(503, message);
+}
+
+export function badGateway(message: string): HttpError {
+  return new HttpError(502, message);
+}
+
 /** Map Prisma known-request errors to safe HTTP errors. Never throws raw DB errors. */
 export function mapPrismaError(err: unknown, notFoundMessage = "Not found"): never {
   const code = (err as { code?: string } | null)?.code;

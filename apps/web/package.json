@@ -10,9 +10,15 @@
     "lint": "next lint --max-warnings 0 || echo \"web: lint skipped (no eslint config)\""
   },
   "dependencies": {
+    "@number-flow/react": "^0.6.2",
+    "clsx": "^2.1.1",
+    "framer-motion": "^14.9.1",
+    "lucide-react": "^1.69.0",
+    "motion": "^14.9.1",
     "next": "^14.2.5",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react-dom": "^18.3.1",
+    "tailwind-merge": "^3.7.0"
   },
   "devDependencies": {
     "@types/node": "^20.14.0",

@@ -10,3 +10,5 @@ export * from "./queues.js";
 export * from "./discovery.js";
 export * from "./personalization.js";
 export * from "./autopilot.js";
+export * from "./resume-discovery.js";
+export * from "./pricing.js";

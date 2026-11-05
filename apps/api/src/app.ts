@@ -1,4 +1,4 @@
-import express from "express";
+import express, { type Request } from "express";
 import cors from "cors";
 import helmet from "helmet";
 import { config, notFound, errorHandler } from "./config.js";
@@ -16,6 +16,9 @@ import { profileRouter } from "./routes/profile.js";
 import { resumesRouter } from "./routes/resumes.js";
 import { projectsRouter } from "./routes/projects.js";
 import { matchesRouter } from "./routes/matches.js";
+import { recommendationsRouter } from "./routes/recommendations.js";
+import { savedJobsRouter } from "./routes/saved-jobs.js";
+import { portfolioRouter } from "./routes/portfolio.js";
 import { integrationsRouter } from "./routes/integrations.js";
 import { inboxRouter } from "./routes/inbox.js";
 import {
@@ -29,6 +32,7 @@ import { notificationsRouter } from "./routes/notifications.js";
 import { personalizationRouter } from "./routes/personalization.js";
 import { analyticsRouter } from "./routes/analytics.js";
 import { autopilotRouter } from "./routes/autopilot.js";
+import { billingRouter, publicBillingRouter } from "./routes/billing.js";
 import { registerDefaultSources } from "./sources/index.js";
 import { registerBrowserDefaults } from "./browser/index.js";
 
@@ -49,7 +53,19 @@ export function createApp() {
       credentials: true,
     }),
   );
-  app.use(express.json({ limit: "1mb" }));
+  // Preserve the raw body for payment webhooks so signature verification is
+  // performed over the exact bytes the provider signed.
+  app.use(
+    express.json({
+      limit: "1mb",
+      verify: (req, _res, buf) => {
+        const rawReq = req as Request & { rawBody?: Buffer };
+        if (rawReq.originalUrl?.startsWith("/api/billing/webhook")) {
+          rawReq.rawBody = Buffer.from(buf);
+        }
+      },
+    }),
+  );
   // Phase 9: CSRF guard for cookie-authenticated unsafe methods (checked).
   app.use(csrfGuard);
 
@@ -58,6 +74,10 @@ export function createApp() {
   // (OAuth state/PKCE protected); /me requires a session; /logout is
   // idempotent. Auth endpoints are volume-limited (in-process).
   app.use("/api/auth", rateLimit("auth", { windowMs: 60_000, max: 120 }), authRouter);
+
+  // Billing public surface: plan catalogue + signature-verified provider
+  // webhook (no session cookie involved).
+  app.use("/api/billing", publicBillingRouter);
 
   // Phase 9: real session auth on all data routes (dev/test bypass only
   // with explicit AUTH_DEV_BYPASS=true outside production).
@@ -71,6 +91,10 @@ export function createApp() {
   app.use("/api/resumes", ...authed, requireDb, resumesRouter);
   app.use("/api/projects", ...authed, requireDb, projectsRouter);
   app.use("/api/matches", ...authed, requireDb, matchesRouter);
+  // Phase 22: resume/portfolio-based discovery, recommendations, bookmarks.
+  app.use("/api/recommendations", ...authed, requireDb, recommendationsRouter);
+  app.use("/api/saved-jobs", ...authed, requireDb, savedJobsRouter);
+  app.use("/api/portfolio", ...authed, requireDb, portfolioRouter);
   // Phase 6: Gmail integrations + inbox (credential-bearing, always DB-backed).
   app.use("/api/integrations", ...authed, integrationsRouter);
   app.use("/api/inbox", ...authed, inboxRouter);
@@ -90,6 +114,8 @@ export function createApp() {
   app.use("/api/notifications", ...authed, notificationsRouter);
   // Phase 12C: descriptive analytics over persisted records (no predictions).
   app.use("/api/analytics", ...authed, analyticsRouter);
+  // Billing: checkout, current plan, cancellation, payment history.
+  app.use("/api/billing", ...authed, requireDb, billingRouter);
 
   app.use(notFound);
   app.use(errorHandler);

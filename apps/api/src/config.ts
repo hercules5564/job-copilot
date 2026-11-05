@@ -1,5 +1,24 @@
-import "dotenv/config";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import dotenv from "dotenv";
 import type { Request, Response, NextFunction } from "express";
+
+/**
+ * Load environment files from both the API package and the monorepo root.
+ * npm workspaces run the API with cwd=apps/api, so a plain
+ * `import "dotenv/config"` would miss the root `.env` that documents the
+ * authoritative DATABASE_URL/SESSION_SECRET values. Existing variables win;
+ * the first matching file is API-local, then the root file.
+ */
+const here = path.dirname(fileURLToPath(import.meta.url));
+for (const candidate of [
+  path.resolve(process.cwd(), ".env"),
+  path.resolve(process.cwd(), "../../.env"),
+  path.resolve(here, "../../../.env"),
+  path.resolve(here, "../../../../.env"),
+]) {
+  dotenv.config({ path: candidate });
+}
 
 export const config = {
   port: Number(process.env.API_PORT ?? 4000),
@@ -13,6 +32,15 @@ export const config = {
     process.env.GOOGLE_REDIRECT_URI ??
     "http://localhost:4000/api/integrations/gmail/callback",
   databaseUrl: process.env.DATABASE_URL ?? "",
+  // Billing: "razorpay" (production), "mock" (local only), or "disabled".
+  // Never defaults to mock in production so a misconfigured deploy fails
+  // closed instead of granting paid access.
+  paymentProvider:
+    (process.env.PAYMENT_PROVIDER ?? "").toLowerCase() ||
+    (process.env.NODE_ENV === "production" ? "disabled" : "mock"),
+  razorpayKeyId: process.env.RAZORPAY_KEY_ID ?? "",
+  razorpayKeySecret: process.env.RAZORPAY_KEY_SECRET ?? "",
+  razorpayWebhookSecret: process.env.RAZORPAY_WEBHOOK_SECRET ?? "",
 };
 
 export function getRequestId(req: Request): string {

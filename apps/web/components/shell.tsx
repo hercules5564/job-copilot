@@ -13,6 +13,7 @@ import {
 } from "../lib/auth-redirect";
 import {
   BellIcon,
+  BillingIcon,
   BoltIcon,
   BriefcaseIcon,
   ChartIcon,
@@ -48,6 +49,7 @@ const NAV = [
   { href: "/analytics", label: "Analytics" },
   { href: "/integrations", label: "Integrations" },
   { href: "/settings", label: "Settings" },
+  { href: "/billing", label: "Billing" },
 ];
 
 const ICONS: Record<string, (p: { width?: number; height?: number }) => JSX.Element> = {
@@ -65,6 +67,7 @@ const ICONS: Record<string, (p: { width?: number; height?: number }) => JSX.Elem
   "/analytics": ChartIcon,
   "/integrations": PlugIcon,
   "/settings": SettingsIcon,
+  "/billing": BillingIcon,
 };
 
 const NAV_GROUPS = [

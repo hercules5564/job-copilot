@@ -189,6 +189,24 @@ export default function DashboardPage() {
         <Stat label="Jobs discovered" value={analytics?.jobs.total ?? 0} />
       </div>
 
+      <Card className="mt-6">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="min-w-0">
+            <h2 className="font-semibold">Build your job profile</h2>
+            <p className="mt-1 text-sm" style={{ color: "var(--muted)" }}>
+              Upload a resume or portfolio, review the AI-extracted details, and discover jobs matched to
+              your real skills, projects and experience.
+            </p>
+          </div>
+          <Link
+            href="/job-profile"
+            className="rounded-lg bg-black px-4 py-2 text-sm font-medium text-white dark:bg-white dark:text-black"
+          >
+            Upload resume →
+          </Link>
+        </div>
+      </Card>
+
       <div className="mt-6 grid gap-4 lg:grid-cols-2">
         <Card>
           <h2 className="font-semibold">Action center</h2>
