@@ -15,6 +15,9 @@ function toPrismaData(userId: string, input: UpdateProfileInput): Prisma.Profile
   if (input.summary !== undefined) data.summary = input.summary;
   if (input.yearsOfExperience !== undefined) data.yearsOfExperience = input.yearsOfExperience;
   if (input.education !== undefined) data.education = (input.education ?? {}) as Prisma.InputJsonValue;
+  if (input.portfolioUrl !== undefined) data.portfolioUrl = input.portfolioUrl;
+  if (input.githubUrl !== undefined) data.githubUrl = input.githubUrl;
+  if (input.linkedinUrl !== undefined) data.linkedinUrl = input.linkedinUrl;
   const p = input.preferences;
   if (p) {
     if (p.targetRoles !== undefined) data.targetRoles = p.targetRoles;

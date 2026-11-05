@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { analyticsApi, ApiError, type AnalyticsOverview } from "../../lib/api";
+import { redirectToLogin } from "../../lib/auth-redirect";
 import { PageHeader, Card, Badge, Stat } from "../../components/ui";
 
 /**
@@ -84,7 +85,7 @@ export default function AnalyticsPage() {
       .then((r) => setData(r.analytics))
       .catch((e) => {
         if (e instanceof ApiError && e.status === 401) {
-          window.location.href = "/login?expired=1";
+          redirectToLogin({ expired: true });
           return;
         }
         setError("Could not load analytics. Start the API with npm run dev:api.");

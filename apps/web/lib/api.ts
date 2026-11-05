@@ -16,7 +16,16 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
     headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },
     cache: "no-store",
   });
-  if (!res.ok) throw new ApiError(res.status, `API ${res.status} on ${path}`);
+  if (!res.ok) {
+    let message = `API ${res.status} on ${path}`;
+    try {
+      const body = (await res.json()) as { error?: string };
+      if (body?.error) message = body.error;
+    } catch {
+      // Non-JSON error body; keep the status-based message.
+    }
+    throw new ApiError(res.status, message);
+  }
   return (await res.json()) as T;
 }
 
@@ -293,6 +302,10 @@ export interface Profile {
   preferredIndustries: string[];
   preferredCompanies: string[];
   excludedCompanies: string[];
+  portfolioUrl?: string | null;
+  githubUrl?: string | null;
+  linkedinUrl?: string | null;
+  experienceLevel?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -320,8 +333,147 @@ export interface Resume {
   isActive: boolean;
   fileUrl?: string | null;
   parsedText?: string | null;
+  kind?: "RESUME" | "PORTFOLIO";
+  storageKey?: string | null;
+  mimeType?: string | null;
+  sizeBytes?: number | null;
+  originalName?: string | null;
+  status?: "UPLOADED" | "PARSING" | "PARSED" | "FAILED";
+  parseError?: string | null;
+  parsedAt?: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export type SkillCategory =
+  | "language"
+  | "framework"
+  | "database"
+  | "cloud"
+  | "devops"
+  | "tool"
+  | "platform"
+  | "other";
+
+export interface ExtractedSkill {
+  name: string;
+  category: SkillCategory;
+}
+
+export interface ExtractedExperience {
+  company: string | null;
+  title: string | null;
+  responsibilities: string[];
+  achievements: string[];
+  internship: boolean;
+}
+
+export interface ExtractedProject {
+  name: string;
+  description: string;
+  technologies: string[];
+}
+
+export type ExperienceLevel = "INTERN" | "ENTRY" | "MID" | "SENIOR" | "LEAD";
+export type DiscoveryWorkMode = "REMOTE" | "HYBRID" | "ONSITE" | "ANY";
+
+export interface ResumeExtraction {
+  summary: string | null;
+  currentTitle: string | null;
+  yearsOfExperience: number | null;
+  education: string[];
+  location: string | null;
+  preferredLocations: string[];
+  skills: ExtractedSkill[];
+  experience: ExtractedExperience[];
+  projects: ExtractedProject[];
+  targetRoles: string[];
+  workMode: DiscoveryWorkMode;
+  employmentTypes: string[];
+  minSalary: number | null;
+  experienceLevel: ExperienceLevel | null;
+  confidence: number;
+  warnings: string[];
+}
+
+export interface ResumeUploadResult {
+  resume: Resume;
+  extraction: ResumeExtraction | null;
+  provider: "ai" | "heuristic" | null;
+  parseError: string | null;
+}
+
+export interface PortfolioAnalysis {
+  accessible: boolean;
+  url: string;
+  kind: "website" | "github";
+  projects: ExtractedProject[];
+  skills: ExtractedSkill[];
+  error: string | null;
+  warnings: string[];
+}
+
+export interface RecommendationItem {
+  jobId: string;
+  title: string;
+  company: string;
+  location: string | null;
+  remote: boolean;
+  employmentType: string | null;
+  salaryMin: number | null;
+  salaryMax: number | null;
+  salaryCurrency: string;
+  source: string;
+  sourceUrl: string | null;
+  applyUrl: string | null;
+  postedAt: string | null;
+  experienceRequirement: number | null;
+  experienceLevel: ExperienceLevel | null;
+  matchScore: number;
+  decision: string;
+  matchMode: string;
+  breakdown: {
+    skillScore: number;
+    roleScore: number;
+    experienceScore: number;
+    projectScore: number;
+    educationScore: number;
+    locationScore: number;
+    salaryScore: number;
+    employmentTypeScore: number;
+    workAuthScore: number;
+  };
+  reasons: string[];
+  matchedSkills: string[];
+  missingSkills: string[];
+  warnings: string[];
+  saved: boolean;
+}
+
+export interface RecommendationDetail extends RecommendationItem {
+  explanation: {
+    whyThisMatches: string[];
+    matchedSkills: string[];
+    matchedRequirements: string[];
+    missingSkills: string[];
+    missingRequirements: string[];
+    uncertainRequirements: string[];
+    matchingProjects: { id: string; name: string; role: string | null; technologies: string[] }[];
+    recommendations: string[];
+    warnings: string[];
+  };
+}
+
+export interface RecommendationsResponse {
+  items: RecommendationItem[];
+  total: number;
+}
+
+export interface ProfileCompleteness {
+  percent: number;
+  missing: string[];
+  hasProfile: boolean;
+  parsedResumes: number;
 }
 
 export interface ResumeVersion {
@@ -349,6 +501,51 @@ export const projectsApi = {
     req<{ ok: boolean }>(`/api/projects/${id}`, { method: "DELETE" }),
 };
 
+export function uploadResumeDocument(input: {
+  file: File;
+  kind?: "RESUME" | "PORTFOLIO";
+  name?: string;
+  onProgress?: (percent: number) => void;
+}): Promise<ResumeUploadResult> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", `${API}/api/resumes/upload`);
+    xhr.withCredentials = true;
+    const lowerName = input.file.name.toLowerCase();
+    const contentType =
+      input.file.type ||
+      (lowerName.endsWith(".docx")
+        ? "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        : "application/pdf");
+    xhr.setRequestHeader("Content-Type", contentType);
+    xhr.setRequestHeader("x-file-name", encodeURIComponent(input.file.name));
+    xhr.setRequestHeader("x-resume-kind", input.kind ?? "RESUME");
+    if (input.name) xhr.setRequestHeader("x-resume-name", encodeURIComponent(input.name));
+    xhr.upload.onprogress = (event) => {
+      if (event.lengthComputable && input.onProgress) {
+        input.onProgress(Math.round((event.loaded / event.total) * 100));
+      }
+    };
+    xhr.onload = () => {
+      let body: unknown = null;
+      try {
+        body = JSON.parse(xhr.responseText);
+      } catch {
+        // Non-JSON error body.
+      }
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve(body as ResumeUploadResult);
+      } else {
+        const message =
+          (body as { error?: string } | null)?.error ?? `Upload failed (${xhr.status})`;
+        reject(new ApiError(xhr.status, message));
+      }
+    };
+    xhr.onerror = () => reject(new ApiError(0, "Could not reach the API."));
+    xhr.send(input.file);
+  });
+}
+
 export const resumesApi = {
   list: () => req<{ resumes: Resume[] }>("/api/resumes"),
   create: (body: Record<string, unknown>) =>
@@ -359,6 +556,198 @@ export const resumesApi = {
     req<{ ok: boolean }>(`/api/resumes/${id}`, { method: "DELETE" }),
   versions: (id: string) =>
     req<{ versions: ResumeVersion[] }>(`/api/resumes/${id}/versions`),
+  upload: uploadResumeDocument,
+  parse: (id: string) =>
+    req<{ extraction: ResumeExtraction; provider: "ai" | "heuristic"; resume: Resume }>(
+      `/api/resumes/${id}/parse`,
+      { method: "POST" },
+    ),
+  extraction: (id: string) =>
+    req<{ resume: Resume; extraction: ResumeExtraction | null }>(`/api/resumes/${id}/extraction`),
+  confirm: (
+    id: string,
+    body: {
+      extraction: ResumeExtraction;
+      portfolioUrl?: string | null;
+      githubUrl?: string | null;
+      linkedinUrl?: string | null;
+      setActive?: boolean;
+    },
+  ) =>
+    req<{ profile: Profile; projects: Project[]; resume: Resume }>(
+      `/api/resumes/${id}/extraction`,
+      { method: "PUT", body: JSON.stringify(body) },
+    ),
+  downloadUrl: (id: string) => `${API}/api/resumes/${id}/download`,
+};
+
+export const portfolioApi = {
+  analyze: (url: string) =>
+    req<{ analysis: PortfolioAnalysis }>("/api/portfolio/analyze", {
+      method: "POST",
+      body: JSON.stringify({ url }),
+    }),
+};
+
+export const recommendationsApi = {
+  list: (query = "") => req<RecommendationsResponse>(`/api/recommendations${query}`),
+  run: (body: { limit?: number; mode?: string; async?: boolean } = {}) =>
+    req<{ matched: number; mode: string }>("/api/recommendations/run", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  detail: (jobId: string) =>
+    req<{ recommendation: RecommendationDetail }>(`/api/recommendations/${jobId}`),
+  completeness: () => req<ProfileCompleteness>("/api/recommendations/completeness"),
+};
+
+export const savedJobsApi = {
+  list: () =>
+    req<{ savedJobs: { id: string; jobId: string; createdAt: string; job: Job }[] }>(
+      "/api/saved-jobs",
+    ),
+  save: (jobId: string) =>
+    req<{ savedJob: { id: string; jobId: string } }>("/api/saved-jobs", {
+      method: "POST",
+      body: JSON.stringify({ jobId }),
+    }),
+  remove: (jobId: string) =>
+    req<{ ok: boolean }>(`/api/saved-jobs/${jobId}`, { method: "DELETE" }),
+};
+
+export type BillingInterval = "monthly" | "yearly";
+
+export interface BillingPlanLimits {
+  savedJobs: number | null;
+  resumeAnalysesPerMonth: number | null;
+  coverLetters: boolean;
+  interviewPreparation: boolean;
+  interviewSimulations: boolean;
+  priorityProcessing: boolean;
+}
+
+export interface BillingPlanView {
+  id: "free" | "pro" | "premium";
+  name: string;
+  description: string;
+  popular: boolean;
+  prices: Record<BillingInterval, number>;
+  limits: BillingPlanLimits;
+  features: string[];
+  yearlySavings: number;
+  yearlySavingsPercent: number;
+}
+
+export interface BillingSubscription {
+  id: string;
+  planId: string;
+  planName: string;
+  billingInterval: BillingInterval;
+  status: "PENDING" | "ACTIVE" | "PAST_DUE" | "CANCELED" | "EXPIRED";
+  startDate: string;
+  expirationDate: string;
+  currentPeriodStart: string;
+  currentPeriodEnd: string;
+  renewalDate: string | null;
+  cancelAtPeriodEnd: boolean;
+  canceledAt: string | null;
+  amount: number;
+  currency: string;
+}
+
+export interface BillingPayment {
+  id: string;
+  planId: string;
+  planName: string;
+  billingInterval: BillingInterval;
+  amount: number;
+  currency: string;
+  status: string;
+  provider: string;
+  providerOrderId: string | null;
+  providerPaymentId: string | null;
+  paidAt: string | null;
+  createdAt: string;
+}
+
+export interface BillingOverview {
+  pricing: {
+    currency: string;
+    currencySymbol: string;
+    yearlySavingsLabel: string;
+  };
+  plans: BillingPlanView[];
+  subscription: BillingSubscription | null;
+  currentPlanId: string;
+  currentInterval: BillingInterval | null;
+  entitlements: BillingPlanLimits;
+  paymentsConfigured: boolean;
+  paymentProvider: "razorpay" | "mock" | "disabled";
+  payments: BillingPayment[];
+}
+
+export interface BillingCheckout {
+  transactionId: string;
+  provider: "razorpay" | "mock";
+  orderId: string;
+  keyId: string | null;
+  checkoutUrl: string | null;
+  amount: number;
+  currency: string;
+  planId: string;
+  interval: BillingInterval;
+  receipt: string;
+  prefill?: { email?: string; name?: string };
+}
+
+export interface BillingCheckoutSession {
+  transactionId: string;
+  provider: string;
+  orderId: string | null;
+  keyId: string | null;
+  checkoutUrl: string | null;
+  amount: number;
+  currency: string;
+  planId: string;
+  planName: string;
+  interval: BillingInterval;
+  status: string;
+  receipt: string | null;
+  createdAt: string;
+  paidAt: string | null;
+  prefill?: { email?: string; name?: string };
+}
+
+export const billingApi = {
+  overview: () => req<BillingOverview>("/api/billing"),
+  plans: () =>
+    req<{
+      pricing: BillingOverview["pricing"];
+      plans: BillingPlanView[];
+      paymentProvider: BillingOverview["paymentProvider"];
+    }>("/api/billing/plans"),
+  payments: () => req<{ payments: BillingPayment[] }>("/api/billing/payments"),
+  checkout: (body: { planId: "pro" | "premium"; interval: BillingInterval }) =>
+    req<{ checkout: BillingCheckout }>("/api/billing/checkout", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  checkoutSession: (transactionId: string) =>
+    req<{ checkout: BillingCheckoutSession }>(
+      `/api/billing/checkout/${encodeURIComponent(transactionId)}`,
+    ),
+  changePlan: (body: { planId: "pro" | "premium"; interval: BillingInterval }) =>
+    req<{ checkout: BillingCheckout; note?: string }>("/api/billing/change-plan", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  confirmMock: (transactionId: string) =>
+    req<BillingOverview>("/api/billing/mock/confirm", {
+      method: "POST",
+      body: JSON.stringify({ transactionId }),
+    }),
+  cancel: () => req<{ subscription: BillingSubscription }>("/api/billing/cancel", { method: "POST" }),
+  resume: () => req<{ subscription: BillingSubscription }>("/api/billing/resume", { method: "POST" }),
 };
 
 export interface AnalyticsOverview {

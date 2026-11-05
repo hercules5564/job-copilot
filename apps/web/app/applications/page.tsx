@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { api, ApiError, type ApplicationSummary } from "../../lib/api";
+import { redirectToLogin } from "../../lib/auth-redirect";
 import { PageHeader, Card, Badge } from "../../components/ui";
 
 /**
@@ -24,7 +25,7 @@ export default function ApplicationsPage() {
       .catch((e) => {
         if (cancelled) return;
         if (e instanceof ApiError && e.status === 401) {
-          window.location.href = "/login?expired=1";
+          redirectToLogin({ expired: true });
           return;
         }
         setError("Could not load applications. Start the API with npm run dev:api.");

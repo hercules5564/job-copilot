@@ -31,7 +31,23 @@ import {
   JOB_ATTEMPTS,
 } from "@jobcopilot/queues";
 
-const REDIS_URL = process.env.REDIS_URL ?? "redis://localhost:6379";
+/**
+ * Run against an isolated Redis logical DB. A live worker (for example the
+ * docker-compose worker on DB 0) otherwise consumes the production-queue jobs
+ * these tests create: it locks them mid-cancel and records dead letters with
+ * its own failure code instead of the test's.
+ */
+function testRedisUrl(raw: string): string {
+  try {
+    const url = new URL(raw);
+    url.pathname = "/15";
+    return url.toString();
+  } catch {
+    return raw;
+  }
+}
+
+const REDIS_URL = testRedisUrl(process.env.REDIS_URL ?? "redis://localhost:6379");
 const TS = Date.now();
 const TQ = (name: string) => `test-${name}-${TS}`;
 const U = (name: string) => `p10test-${name}-${TS}`;
@@ -82,7 +98,8 @@ afterAll(async () => {
   // Remove DLQ entries created by these tests.
   try {
     const dlq = getDeadLetterQueue();
-    const jobs = await dlq.getJobs(["completed"], 0, 200);
+    // Dead-letter entries rest in "waiting" (no worker drains the DLQ).
+    const jobs = await dlq.getJobs(["waiting", "completed"], 0, 1000);
     for (const job of jobs) {
       if (String((job.data as { userId?: unknown })?.userId ?? "").startsWith("p10test-")) {
         await job.remove().catch(() => undefined);

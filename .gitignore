@@ -8,5 +8,7 @@ build/
 !.env.example
 coverage/
 prisma/*.db
+.uploads/
 *.tsbuildinfo
 .tmp-*
+.opencode/

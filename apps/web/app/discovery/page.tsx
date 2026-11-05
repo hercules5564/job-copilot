@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { discoveryApi, signalsApi, api, type DiscoveryConfig, type HiringSignal } from "../../lib/api";
 import { PageHeader, Card, Badge } from "../../components/ui";
+import { Autocomplete } from "../../components/autocomplete";
 
 /**
  * Phase 10B — minimal discovery surface (backend infrastructure UI).
@@ -131,12 +132,32 @@ export default function DiscoveryPage() {
             <label className="flex items-center gap-2">
               <input type="checkbox" checked={config.enabled} onChange={(e) => set("enabled", e.target.checked)} /> Enabled
             </label>
-            <label className="grid gap-1">Target roles (comma-separated, max 20)
-              <input className="rounded-lg border p-2" value={csv(config.targetRoles)} onChange={(e) => set("targetRoles", uncsv(e.target.value))} placeholder="Backend Engineer, Frontend Engineer" />
-            </label>
-            <label className="grid gap-1">Target locations (comma-separated, max 20)
-              <input className="rounded-lg border p-2" value={csv(config.targetLocations)} onChange={(e) => set("targetLocations", uncsv(e.target.value))} placeholder="Berlin, Remote" />
-            </label>
+            <div className="grid gap-1">
+              <label htmlFor="discoveryRoles">Target roles (comma-separated, max 20)</label>
+              <Autocomplete
+                id="discoveryRoles"
+                kind="role"
+                mode="csv"
+                className="rounded-lg border p-2"
+                value={csv(config.targetRoles)}
+                onChange={(value) => set("targetRoles", uncsv(value))}
+                placeholder="Backend Engineer, Frontend Engineer"
+                data-testid="discovery-roles"
+              />
+            </div>
+            <div className="grid gap-1">
+              <label htmlFor="discoveryLocations">Target locations (comma-separated, max 20)</label>
+              <Autocomplete
+                id="discoveryLocations"
+                kind="location"
+                mode="csv"
+                className="rounded-lg border p-2"
+                value={csv(config.targetLocations)}
+                onChange={(value) => set("targetLocations", uncsv(value))}
+                placeholder="Berlin, Remote"
+                data-testid="discovery-locations"
+              />
+            </div>
             <label className="grid gap-1">Preferred skills (comma-separated, max 50)
               <input className="rounded-lg border p-2" value={csv(config.preferredSkills)} onChange={(e) => set("preferredSkills", uncsv(e.target.value))} placeholder="TypeScript, React" />
             </label>

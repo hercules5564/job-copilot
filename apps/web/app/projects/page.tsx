@@ -2,7 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { projectsApi, ApiError, type Project } from "../../lib/api";
+import { redirectToLogin } from "../../lib/auth-redirect";
 import { PageHeader, Card, Badge } from "../../components/ui";
+import { Autocomplete } from "../../components/autocomplete";
 
 /**
  * Phase 12A — project library over the existing CRUD API.
@@ -69,7 +71,23 @@ function toBody(f: ProjectForm): Record<string, unknown> {
   };
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({
+  label,
+  children,
+  htmlFor,
+}: {
+  label: string;
+  children: React.ReactNode;
+  htmlFor?: string;
+}) {
+  if (htmlFor) {
+    return (
+      <div className="grid gap-1 text-sm">
+        <label htmlFor={htmlFor} className="font-medium">{label}</label>
+        {children}
+      </div>
+    );
+  }
   return (
     <label className="grid gap-1 text-sm">
       <span className="font-medium">{label}</span>
@@ -89,8 +107,17 @@ function ProjectFormFields({ form, set }: { form: ProjectForm; set: (f: ProjectF
         <Field label="Name *">
           <input id="projectName" className={inputCls} value={form.name} onChange={setK("name")} placeholder="Realtime API gateway" maxLength={200} required />
         </Field>
-        <Field label="Role">
-          <input id="projectRole" className={inputCls} value={form.role} onChange={setK("role")} placeholder="Backend Engineer" maxLength={200} />
+        <Field label="Role" htmlFor="projectRole">
+          <Autocomplete
+            id="projectRole"
+            kind="role"
+            className={inputCls}
+            value={form.role}
+            onChange={(value) => set({ ...form, role: value })}
+            placeholder="Backend Engineer"
+            maxLength={200}
+            data-testid="project-role"
+          />
         </Field>
       </div>
       <Field label="Description *">
@@ -140,7 +167,7 @@ export default function ProjectsPage() {
       setProjects(r.projects);
     } catch (e) {
       if (e instanceof ApiError && e.status === 401) {
-        window.location.href = "/login?expired=1";
+        redirectToLogin({ expired: true });
         return;
       }
       setError("Could not load projects. Start the API with npm run dev:api.");

@@ -301,3 +301,12 @@ export function GoogleIcon(props: IconProps) {
     </svg>
   );
 }
+
+export function BillingIcon(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <rect x="2.5" y="5" width="19" height="14" rx="2.5" />
+      <path d="M2.5 10h19M6.5 15h4" />
+    </svg>
+  );
+}

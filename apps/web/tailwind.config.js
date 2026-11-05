@@ -10,6 +10,40 @@ module.exports = {
   theme: {
     extend: {
       colors: {
+        // shadcn/ui tokens mapped onto JobPilot's existing light/dark vars.
+        background: "var(--bg)",
+        foreground: "var(--fg)",
+        card: {
+          DEFAULT: "var(--card)",
+          foreground: "var(--fg)",
+        },
+        popover: {
+          DEFAULT: "var(--surface-overlay)",
+          foreground: "var(--fg)",
+        },
+        primary: {
+          DEFAULT: "var(--blue)",
+          foreground: "#ffffff",
+        },
+        secondary: {
+          DEFAULT: "var(--surface-sunken)",
+          foreground: "var(--ink)",
+        },
+        muted: {
+          DEFAULT: "var(--surface-sunken)",
+          foreground: "var(--ink-muted)",
+        },
+        accent: {
+          DEFAULT: "var(--surface-sunken)",
+          foreground: "var(--ink)",
+        },
+        destructive: {
+          DEFAULT: "var(--danger)",
+          foreground: "#ffffff",
+        },
+        border: "var(--border)",
+        input: "var(--border)",
+        ring: "var(--blue)",
         ink: "#171717",
         paper: "#f5f5f2",
         cf: {

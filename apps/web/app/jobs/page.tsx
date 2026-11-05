@@ -5,6 +5,7 @@ import Link from "next/link";
 import { api, type Job, type JobSource, type IngestionResult, type JobMatch } from "../../lib/api";
 import { plainText } from "../../lib/text";
 import { PageHeader, Card, Badge } from "../../components/ui";
+import { Autocomplete } from "../../components/autocomplete";
 
 export default function JobsPage() {
   const [jobs, setJobs] = useState<Job[]>([]);
@@ -126,10 +127,24 @@ export default function JobsPage() {
               <option key={s.id} value={s.id}>{s.name}{s.mock ? " (mock)" : ""}</option>
             ))}
           </select>
-          <input className="rounded-lg border p-2" placeholder="Query (e.g. backend)" value={ingest.query}
-            onChange={(e) => setIngest({ ...ingest, query: e.target.value })} />
-          <input className="rounded-lg border p-2" placeholder="Location (optional)" value={ingest.location}
-            onChange={(e) => setIngest({ ...ingest, location: e.target.value })} />
+          <Autocomplete
+            kind="role"
+            className="rounded-lg border p-2"
+            placeholder="Query (e.g. backend)"
+            value={ingest.query}
+            onChange={(value) => setIngest({ ...ingest, query: value })}
+            aria-label="Job role query"
+            data-testid="ingest-query"
+          />
+          <Autocomplete
+            kind="location"
+            className="rounded-lg border p-2"
+            placeholder="Location (optional)"
+            value={ingest.location}
+            onChange={(value) => setIngest({ ...ingest, location: value })}
+            aria-label="Location"
+            data-testid="ingest-location"
+          />
           <label className="flex items-center gap-2 text-sm">
             <input type="checkbox" checked={ingest.remote}
               onChange={(e) => setIngest({ ...ingest, remote: e.target.checked })} />
@@ -152,12 +167,27 @@ export default function JobsPage() {
       <Card>
         <h2 className="font-semibold">Add a job</h2>
         <form onSubmit={submit} className="mt-3 grid gap-3">
-          <input className="rounded-lg border p-2" placeholder="Title *" value={form.title}
-            onChange={(e) => setForm({ ...form, title: e.target.value })} required />
+          <Autocomplete
+            kind="role"
+            className="rounded-lg border p-2"
+            placeholder="Title *"
+            value={form.title}
+            onChange={(value) => setForm({ ...form, title: value })}
+            required
+            aria-label="Job title"
+            data-testid="job-title"
+          />
           <input className="rounded-lg border p-2" placeholder="Company *" value={form.company}
             onChange={(e) => setForm({ ...form, company: e.target.value })} required />
-          <input className="rounded-lg border p-2" placeholder="Location" value={form.location}
-            onChange={(e) => setForm({ ...form, location: e.target.value })} />
+          <Autocomplete
+            kind="location"
+            className="rounded-lg border p-2"
+            placeholder="Location"
+            value={form.location}
+            onChange={(value) => setForm({ ...form, location: value })}
+            aria-label="Job location"
+            data-testid="job-location"
+          />
           <textarea className="rounded-lg border p-2" placeholder="Description *" value={form.description}
             onChange={(e) => setForm({ ...form, description: e.target.value })} required rows={3} />
           <button className="rounded-lg bg-black px-4 py-2 text-sm font-medium text-white dark:bg-white dark:text-black" type="submit">

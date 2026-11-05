@@ -26,6 +26,10 @@ export const UpdateProfileSchema = z.object({
   summary: z.string().max(5000).optional().nullable(),
   yearsOfExperience: z.number().nonnegative().max(80).optional().nullable(),
   education: z.unknown().optional(), // structured JSON, validated at service layer
+  // Phase 22: optional public links (analysis is explicitly user-triggered).
+  portfolioUrl: z.string().url().max(2000).optional().nullable(),
+  githubUrl: z.string().url().max(2000).optional().nullable(),
+  linkedinUrl: z.string().url().max(2000).optional().nullable(),
   preferences: ProfilePreferencesSchema.partial().optional(),
 });
 

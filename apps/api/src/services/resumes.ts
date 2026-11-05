@@ -1,6 +1,7 @@
 import { prisma } from "@jobcopilot/db";
 import type { CreateResumeInput, UpdateResumeInput } from "@jobcopilot/shared";
 import { notFound, mapPrismaError } from "./errors.js";
+import { deleteDocument } from "./resume-storage.js";
 
 export async function listResumes(userId: string) {
   return prisma.resume.findMany({
@@ -74,6 +75,9 @@ export async function updateResume(userId: string, id: string, input: UpdateResu
 }
 
 export async function deleteResume(userId: string, id: string): Promise<void> {
+  const current = await prisma.resume.findFirst({ where: { id, userId } });
+  if (!current) throw notFound("Resume not found");
+  await deleteDocument(current.storageKey);
   try {
     await prisma.resume.deleteMany({ where: { id, userId } }).then((r) => {
       if (r.count === 0) throw notFound("Resume not found");
@@ -82,6 +86,37 @@ export async function deleteResume(userId: string, id: string): Promise<void> {
     if ((err as { status?: number })?.status === 404) throw err;
     mapPrismaError(err, "Resume not found");
   }
+}
+
+/** Create a Resume row for a validated, privately stored upload. */
+export async function createUploadedResume(
+  userId: string,
+  input: {
+    name: string;
+    kind: "RESUME" | "PORTFOLIO";
+    storageKey: string;
+    mimeType: string;
+    sizeBytes: number;
+    originalName: string;
+  },
+) {
+  const active = await prisma.resume.findFirst({
+    where: { userId, kind: "RESUME", isActive: true },
+    select: { id: true },
+  });
+  return prisma.resume.create({
+    data: {
+      userId,
+      name: input.name.slice(0, 200),
+      kind: input.kind,
+      storageKey: input.storageKey,
+      mimeType: input.mimeType,
+      sizeBytes: input.sizeBytes,
+      originalName: input.originalName,
+      status: "UPLOADED",
+      isActive: input.kind === "RESUME" ? !active : false,
+    },
+  });
 }
 
 export async function listResumeVersions(userId: string, id: string) {

@@ -165,6 +165,27 @@ describe("login state tokens", () => {
     expect(url).toContain("scope=openid+email+profile");
     expect(url).not.toContain("gmail.readonly");
   });
+
+  it("round-trips a safe post-login destination and drops unsafe ones", () => {
+    const safe = issueLoginState(undefined, "/jobs?query=designer#top");
+    expect(validateLoginState(safe.state).next).toBe("/jobs?query=designer#top");
+
+    for (const unsafe of [
+      "https://evil.example/steal",
+      "//evil.example/steal",
+      "/\\evil.example/steal",
+      "/login?next=/dashboard",
+      "/login",
+      "/dashboard\nLocation: https://evil.example",
+    ]) {
+      const issued = issueLoginState(undefined, unsafe);
+      expect(validateLoginState(issued.state).next).toBeNull();
+    }
+
+    const url = new URL(buildLoginUrl("/applications/app_1"));
+    const state = url.searchParams.get("state") ?? "";
+    expect(validateLoginState(state).next).toBe("/applications/app_1");
+  });
 });
 
 // ---------- unit: CSRF + rate limit + bypass ----------
@@ -238,6 +259,13 @@ describe.skipIf(!DB)("session authentication", () => {
     expect(Object.keys(res.body.user).sort()).toEqual(
       ["avatarUrl", "email", "emailVerifiedAt", "id", "name"].sort(),
     );
+  });
+
+  it("does not auto-authenticate from AUTH_DEV_BYPASS without the explicit header", async () => {
+    bypassOn();
+    await request(app).get("/api/auth/me").expect(401);
+    await request(app).get("/api/jobs").expect(401);
+    await request(app).get("/api/analytics").expect(401);
   });
 
   it("rejects missing, tampered, expired, and revoked sessions with 401", async () => {

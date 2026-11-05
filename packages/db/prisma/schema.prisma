@@ -65,6 +65,9 @@ model User {
   discoveryConfig DiscoveryConfig? // Phase 10B: automated discovery preferences
   hiringSignals HiringSignal[] // Phase 10B: user-scoped hiring evidence
   personalizationDrafts PersonalizationDraft[] // Phase 15: AI draft versions (review-gated)
+  savedJobs     SavedJob[] // Phase 22: jobs the user bookmarked
+  subscriptions Subscription[] // Billing: paid subscription terms
+  payments      PaymentTransaction[] // Billing: provider-verified payments
 
   @@map("users")
 }
@@ -80,6 +83,13 @@ model Profile {
   yearsOfExperience  Float?
   education          Json?
   rawResumeText      String?
+
+  // Resume/portfolio discovery (Phase 22). Links are optional and only
+  // used for user-authorized public analysis; private data is never scraped.
+  portfolioUrl       String?
+  githubUrl          String?
+  linkedinUrl        String?
+  experienceLevel    String? // INTERN | ENTRY | MID | SENIOR | LEAD
 
   // Preferences (spec §1)
   targetRoles        String[]  @default([])
@@ -116,6 +126,17 @@ model Resume {
   fileUrl     String?
   parsedText  String?
   parsedJson  Json?
+
+  // Phase 22: private uploaded document metadata. storageKey is an opaque
+  // server-generated id; files are never served from a public path.
+  kind         String   @default("RESUME") // RESUME | PORTFOLIO
+  storageKey   String?
+  mimeType     String?
+  sizeBytes    Int?
+  originalName String?
+  status       String   @default("UPLOADED") // UPLOADED | PARSING | PARSED | FAILED
+  parseError   String?
+  parsedAt     DateTime?
 
   versions    ResumeVersion[]
   createdAt   DateTime @default(now())
@@ -226,6 +247,7 @@ model Job {
   runs           ApplicationRun[] // Phase 7: assisted application runs
   hiringSignals  HiringSignal[] // Phase 10B: signals evidencing this job
   personalizationDrafts PersonalizationDraft[] // Phase 15: drafts generated for this job
+  savedBy        SavedJob[] // Phase 22: user bookmarks
 
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
@@ -284,6 +306,20 @@ model JobMatch {
   @@unique([jobId, userId])
   @@index([userId, overallScore])
   @@map("job_matches")
+}
+
+/// Phase 22 — jobs the user explicitly bookmarked from recommendations.
+model SavedJob {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  jobId     String
+  job       Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, jobId])
+  @@index([userId, createdAt])
+  @@map("saved_jobs")
 }
 
 model Application {
@@ -693,4 +729,84 @@ model ApplicationAnswer {
 
   @@unique([runId, fieldId])
   @@map("application_answers")
+}
+
+// ---- Billing: monthly/yearly subscriptions ---------------------------------
+
+enum BillingInterval {
+  MONTHLY
+  YEARLY
+}
+
+enum SubscriptionStatus {
+  PENDING
+  ACTIVE
+  PAST_DUE
+  CANCELED
+  EXPIRED
+}
+
+/// One row per purchased/renewed term. A user can have multiple historical
+/// subscriptions; at most one is active at a time. Access is granted strictly
+/// from ACTIVE/CANCELED rows whose expirationDate is still in the future.
+model Subscription {
+  id                   String             @id @default(cuid())
+  userId               String
+  user                 User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  planId               String             // free | pro | premium (paid rows only)
+  billingInterval      BillingInterval
+  status               SubscriptionStatus @default(PENDING)
+
+  startDate            DateTime
+  expirationDate       DateTime
+  currentPeriodStart   DateTime
+  currentPeriodEnd     DateTime
+  renewalDate          DateTime?
+  cancelAtPeriodEnd    Boolean            @default(false)
+  canceledAt           DateTime?
+
+  provider             String?            // razorpay | mock
+  providerSubscriptionId String?          @unique
+  lastPaymentId        String?
+
+  payments             PaymentTransaction[]
+
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+
+  @@index([userId, status])
+  @@index([userId, expirationDate])
+  @@map("subscriptions")
+}
+
+/// Provider-verified payment records. Only rows with status PAID grant
+/// subscription access; the checkout amount is copied from server-side
+/// pricing config and re-checked against the provider webhook.
+model PaymentTransaction {
+  id                String       @id @default(cuid())
+  userId            String
+  user              User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subscriptionId    String?
+  subscription      Subscription? @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+
+  provider          String       // razorpay | mock
+  providerOrderId   String?
+  providerCheckoutUrl String?    // third-party hosted payment page
+  providerPaymentId String?      @unique
+  planId            String
+  billingInterval   BillingInterval
+  amount            Int          // provider minor units (paise)
+  currency          String       @default("INR")
+  status            String       @default("CREATED") // CREATED | PAID | FAILED | REFUNDED
+  receipt           String?
+  failureReason     String?
+  paidAt            DateTime?
+
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+
+  @@index([userId, createdAt])
+  @@index([providerOrderId])
+  @@map("payment_transactions")
 }

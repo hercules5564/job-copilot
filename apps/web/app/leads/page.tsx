@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { signalsApi, ApiError, type HiringSignal } from "../../lib/api";
+import { redirectToLogin } from "../../lib/auth-redirect";
 import { PageHeader, Card, Badge } from "../../components/ui";
 
 /**
@@ -98,7 +99,7 @@ export default function LeadsPage() {
       setDetailError("");
     } catch (e) {
       if (e instanceof ApiError && e.status === 401) {
-        window.location.href = "/login?expired=1";
+        redirectToLogin({ expired: true });
         return;
       }
       setError("Could not load hiring signals. Start the API with npm run dev:api.");
@@ -130,7 +131,7 @@ export default function LeadsPage() {
       setDetail(r.signal);
     } catch (e) {
       if (e instanceof ApiError && e.status === 401) {
-        window.location.href = "/login?expired=1";
+        redirectToLogin({ expired: true });
         return;
       }
       // The list row already shows the essentials; detail refresh is best-effort.

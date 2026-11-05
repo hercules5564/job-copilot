@@ -3,7 +3,16 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { api, ApiError, type Job, type JobMatch } from "../../../lib/api";
+import {
+  api,
+  ApiError,
+  recommendationsApi,
+  savedJobsApi,
+  type Job,
+  type JobMatch,
+  type RecommendationDetail,
+} from "../../../lib/api";
+import { redirectToLogin } from "../../../lib/auth-redirect";
 import { plainText } from "../../../lib/text";
 import { PageHeader, Card, Badge } from "../../../components/ui";
 
@@ -29,6 +38,9 @@ export default function JobDetailPage({ params }: { params: { id: string } }) {
   const [match, setMatch] = useState<JobMatch | null>(null);
   const [matchMissing, setMatchMissing] = useState(false);
   const [existingAppId, setExistingAppId] = useState<string | null>(null);
+  const [recommendation, setRecommendation] = useState<RecommendationDetail | null>(null);
+  const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -37,20 +49,26 @@ export default function JobDetailPage({ params }: { params: { id: string } }) {
     let cancelled = false;
     async function load() {
       try {
-        const [j, m, apps] = await Promise.all([
+        const [j, m, apps, savedList, detail] = await Promise.all([
           api.job(params.id),
           api.matchForJob(params.id).catch(() => ({ match: null as JobMatch | null })),
           api.applications().catch(() => ({ applications: [] as { id: string; jobId: string }[] })),
+          savedJobsApi.list().catch(() => ({ savedJobs: [] as { jobId: string }[] })),
+          recommendationsApi
+            .detail(params.id)
+            .catch(() => ({ recommendation: null as RecommendationDetail | null })),
         ]);
         if (cancelled) return;
         setJob(j.job);
         setMatch(m.match);
         setMatchMissing(!m.match);
         setExistingAppId(apps.applications.find((a) => a.jobId === params.id)?.id ?? null);
+        setSaved(savedList.savedJobs.some((s) => s.jobId === params.id));
+        setRecommendation(detail.recommendation);
       } catch (e) {
         if (cancelled) return;
         if (e instanceof ApiError && e.status === 401) {
-          window.location.href = "/login?expired=1";
+          redirectToLogin({ expired: true });
           return;
         }
         if (e instanceof ApiError && e.status === 404) {
@@ -79,6 +97,20 @@ export default function JobDetailPage({ params }: { params: { id: string } }) {
       setError("Matching failed. Complete your profile first, then retry.");
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function toggleSave() {
+    setSaving(true);
+    setError("");
+    try {
+      if (saved) await savedJobsApi.remove(params.id);
+      else await savedJobsApi.save(params.id);
+      setSaved((value) => !value);
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Could not update this bookmark.");
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -166,6 +198,26 @@ export default function JobDetailPage({ params }: { params: { id: string } }) {
           >
             {existingAppId ? "Open application →" : "Track as application →"}
           </button>
+          {job?.sourceUrl ? (
+            <a
+              href={job.sourceUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="rounded-lg border px-4 py-2 text-sm font-medium"
+              style={{ borderColor: "var(--border)" }}
+            >
+              Apply on original site →
+            </a>
+          ) : null}
+          <button
+            type="button"
+            onClick={() => void toggleSave()}
+            disabled={saving}
+            className="rounded-lg border px-4 py-2 text-sm font-medium disabled:opacity-50"
+            style={{ borderColor: "var(--border)" }}
+          >
+            {saving ? "Saving…" : saved ? "Unsave job" : "Save job"}
+          </button>
           <Link href="/jobs" className="rounded-lg border px-4 py-2 text-sm">
             Back to jobs
           </Link>
@@ -244,6 +296,43 @@ export default function JobDetailPage({ params }: { params: { id: string } }) {
           </div>
         )}
       </Card>
+
+      {recommendation?.explanation ? (
+        <Card>
+          <h2 className="font-semibold">Recommendations</h2>
+          {recommendation.explanation.matchingProjects.length > 0 ? (
+            <div className="mt-2 text-sm">
+              <h3 className="font-medium">Projects that support this application</h3>
+              <ul className="mt-1 list-disc pl-5">
+                {recommendation.explanation.matchingProjects.map((project) => (
+                  <li key={project.id}>
+                    {project.name}
+                    {project.technologies.length > 0 ? ` — ${project.technologies.join(", ")}` : ""}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+          <div className="mt-3 text-sm">
+            <h3 className="font-medium">What could make you stronger</h3>
+            <ul className="mt-1 list-disc pl-5">
+              {recommendation.explanation.recommendations.map((tip, i) => <li key={i}>{tip}</li>)}
+            </ul>
+          </div>
+          {recommendation.explanation.uncertainRequirements.length > 0 ? (
+            <div className="mt-3 text-sm">
+              <h3 className="font-medium">Uncertain requirements</h3>
+              <ul className="mt-1 list-disc pl-5" style={{ color: "var(--muted)" }}>
+                {recommendation.explanation.uncertainRequirements.map((item, i) => <li key={i}>{item}</li>)}
+              </ul>
+            </div>
+          ) : null}
+          <p className="mt-3 text-xs" style={{ color: "var(--muted)" }}>
+            Recommendations are derived from the job posting and your confirmed profile. They never claim
+            skills that are not in your resume.
+          </p>
+        </Card>
+      ) : null}
 
       {existingAppId ? (
         <Card>
